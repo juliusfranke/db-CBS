@@ -123,7 +123,7 @@ int main(int argc, char* argv[]) {
 
     load_motion_primitives_new(options_tdbastar.motionsFile, *robot, motions, 
                               options_tdbastar.max_motions,
-                              options_tdbastar.cut_actions, false, options_tdbastar.check_cols);
+                              options_tdbastar.cut_actions, true, options_tdbastar.check_cols);
     options_tdbastar.motions_ptr = &motions; 
 
     tdbastar(problem, options_tdbastar, trajectory, constraints, out_tdb, robot_id,/*reverse_search*/false);
