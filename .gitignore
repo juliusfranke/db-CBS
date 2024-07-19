@@ -7,3 +7,5 @@ demo/
 cloud/motions/
 .vscode/
 __pycache__/
+motions
+.clangd
