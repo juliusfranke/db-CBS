@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iterator>
+#include <string>
 #include <yaml-cpp/yaml.h>
 #include <filesystem>
 // BOOST
@@ -12,6 +13,7 @@
 #include <boost/heap/d_ary_heap.hpp>
 // DYNOPLAN
 #include <dynoplan/optimization/ocp.hpp>
+#include "dynoplan/ompl/robots.h"
 #include "dynoplan/optimization/multirobot_optimization.hpp"
 #include "dynoplan/tdbastar/tdbastar.hpp"
 // DYNOBENCH
@@ -133,7 +135,7 @@ int main(int argc, char* argv[]) {
                 (problem.models_base_path + robotType + ".yaml").c_str(), problem.p_lb, problem.p_ub);
         robots.push_back(robot);
         if (robotType == "unicycle1_v0" || robotType == "unicycle1_sphere_v0"){
-            motionsFile = "../new_format_motions/unicycle1_v0/unicycle1_v0.msgpack";
+            motionsFile = cfg["mp_path"].as<std::string>();
         } else if (robotType == "unicycle2_v0"){
             motionsFile = "../new_format_motions/unicycle2_v0/unicycle2_v0.msgpack";
         } else if (robotType == "car1_v0"){
@@ -163,9 +165,13 @@ int main(int argc, char* argv[]) {
         robot_objs.push_back(robot_obj);
         if (robot_motions.find(problem.robotTypes[i]) == robot_motions.end()){
             options_tdbastar.motionsFile = all_motionsFile[i];
-            load_motion_primitives_new(options_tdbastar.motionsFile, *robot, robot_motions[problem.robotTypes[i]], 
+            load_motion_primitives_new(options_tdbastar.motionsFile, 
+                                       *robot, 
+                                       robot_motions[problem.robotTypes[i]], 
                                        options_tdbastar.max_motions,
-                                       options_tdbastar.cut_actions, /*shuffle*/true, options_tdbastar.check_cols);
+                                       options_tdbastar.cut_actions, 
+                                       /*shuffle*/true, 
+                                       options_tdbastar.check_cols);
         }
         if (robot->name == "car_with_trailers") {
           col_geom_id++;
@@ -272,21 +278,23 @@ int main(int argc, char* argv[]) {
             std::ofstream out(outputFile);
             export_solutions(P.solution, robots.size(), &out);
             // get motion_primitives_plot
-            if (save_forward_search_expansion){
-              std::string output_folder = output_path.parent_path().string();
-              std::ofstream out2(output_folder + "/expanded_trajs_forward_solution_" + gen_random(6) + ".yaml");
-              export_node_expansion(expanded_trajs_tmp, &out2);
-            }
-            bool sum_robot_cost = true;
-            bool feasible = execute_optimizationMultiRobot(inputFile,
-                                          outputFile, 
-                                          optimizationFile,
-                                          DYNOBENCH_BASE,
-                                          sum_robot_cost);
-            if (feasible) {
-              return 0;
-            }
-            break;
+            /*if (save_forward_search_expansion){*/
+            /*  std::string output_folder = output_path.parent_path().string();*/
+            /*  std::ofstream out2(output_folder + "/expanded_trajs_forward_solution_" + gen_random(6) + ".yaml");*/
+            /*  export_node_expansion(expanded_trajs_tmp, &out2);*/
+            /*}*/
+            /*bool sum_robot_cost = true;*/
+            /*bool feasible = execute_optimizationMultiRobot(inputFile,*/
+            /*                              outputFile, */
+            /*                              optimizationFile,*/
+            /*                              DYNOBENCH_BASE,*/
+            /*                              sum_robot_cost);*/
+            return 0;
+            /*if (feasible) {*/
+            /*    return 0;*/
+            /*}*/
+            /**/
+            /*break;*/
         }
         ++expands;
         if (expands % 100 == 0) {
