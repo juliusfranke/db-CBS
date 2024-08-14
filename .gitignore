@@ -9,3 +9,4 @@ cloud/motions/
 __pycache__/
 motions
 .clangd
+output
