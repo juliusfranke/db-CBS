@@ -18,7 +18,7 @@ def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | None]:
         with open(filename_cfg, "w") as f:
             yaml.dump(cfg, f, Dumper=yaml.CSafeDumper)
 
-        print(filename_env)
+        # print(filename_env)
         filename_stats = "{}/stats.yaml".format(folder)
         start = time.time()
         duration_dbcbs = 0
@@ -43,18 +43,17 @@ def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | None]:
                 "-t",
                 str(1e6),
             ]
-            print(subprocess.list2cmdline(cmd))
+            # print(subprocess.list2cmdline(cmd))
             try:
-                print("Try")
                 with open("{}/log.txt".format(folder), "w") as logfile:
                     result = subprocess.run(
                         cmd, timeout=timelimit, stdout=logfile, stderr=logfile
                     )
-                print("Hello")
                 t_dbcbs_stop = time.time()
                 duration_dbcbs += t_dbcbs_stop - t_dbcbs_start
                 if result.returncode != 0:
-                    print("db-cbs failed ", result.returncode)
+                    pass
+                    # print("db-cbs failed ", result.returncode)
                 else:
                     # shutil.copyfile(filename_result_dbcbs_opt, "{}/result_dbcbs_opt.yaml".format(folder))
                     # cost = 0
@@ -66,16 +65,17 @@ def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | None]:
                     #     cost = result["cost"] # cost*2
                     now = time.time()
                     t = now - start
-                    print("success!", cost, t)
+                    # print("success!", cost, t)
                     stats.write("  - t: {}\n".format(t))
                     stats.write("    cost: {}\n".format(cost))
                     stats.write("    duration_dbcbs: {}\n".format(duration_dbcbs))
                     stats.flush()
             except:
-                print("Failure!")
+                # print("Failure!")
+                pass
 
             if cost == 0:
                 cost = None
             if duration_dbcbs == 0:
                 duration_dbcbs = None
-            return {"cost": cost, "duration_dbcbs": duration_dbcbs, "success": bool(cost)}
+            return {"cost": cost, "duration_dbcbs": duration_dbcbs, "success": bool(cost), "mp_name": cfg["mp_name"], "size": cfg["num_primitives_0"]}
