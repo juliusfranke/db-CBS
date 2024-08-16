@@ -7,7 +7,7 @@ from pathlib import Path
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-RESULT_PATH = Path("../results/Randomly generated/")
+RESULT_PATH = Path("../results/Baseline l5/")
 OUTPUT_PATH = Path("../output/")
 
 
@@ -90,9 +90,12 @@ def diff(start: np.ndarray, goal: np.ndarray) -> np.ndarray:
 def main():
     # breakpoint()
     for folder in RESULT_PATH.iterdir():
-        skipped = 0
-        data: Dict[str, MotionPrimitive] = {}
         problem_name = folder.name
+        print(f"Found problem instance {problem_name}")
+        print("Export data from this problem? (y/n)")
+        if input() == "n":
+            continue
+        data: Dict[str, MotionPrimitive] = {}
         solutions_path = folder / "100"
         if not solutions_path.exists():
             print(f"{problem_name} has no solution from db-cbs")
@@ -123,21 +126,8 @@ def main():
                 else:
                     data[hash] = mp
             i += 1
-        # unique_counts = collections.Counter(e for e in data)
-        # d = [
-        #     {**x, "count": data.count(x)}
-        #     for i, x in enumerate(data)
-        #     if x not in data[:i]
-        # ]
-        # test = pd.DataFrame(d)
-        # print(test)
-        # print(test[test["count"] > 1])
-        # d = list(set(data))
-        # breakpoint()
-        # setData = list(set(data))
         setData = list(data.values())
         print(len(setData))
-        breakpoint()
         dictData = {}
         dictData["theta0"] = [mp.start[2] for mp in setData]
         dictData["s"] = [np.mean(mp.actions[:, 0]) for mp in setData]
@@ -147,29 +137,29 @@ def main():
         dfData = pd.DataFrame(dictData)
         total_count = dfData["count"].sum()
         count_max = dfData["count"].max()
-        dfData["rel_probability"] = dfData["count"]/ count_max
+        dfData["rel_probability"] = dfData["count"] / count_max
         dfData["probability"] = dfData["count"] / total_count
         dfData = dfData.sort_values("probability")
         dfData["cdf"] = dfData["probability"].cumsum()
-        breakpoint()
         dfData = dfData.sort_index()
         for i, mp in enumerate(setData):
             mp.cdf = float(dfData["cdf"][i])
             mp.rel_probability = float(dfData["rel_probability"][i])
+        # dfData = pd.DataFrame(dfData[dfData["count"]>1])
 
         fig, axs = plt.subplots(4, 1)
         sns.histplot(data=dfData, x="theta0", weights="count", kde=True, ax=axs[0])
         sns.histplot(data=dfData, x="s", weights="count", kde=True, ax=axs[1])
         sns.histplot(data=dfData, x="phi", kde=True, weights="count", ax=axs[2])
-        sns.lineplot(data=dfData, x="rel_probability", y="count", ax=axs[3])
+        # sns.lineplot(data=dfData, x="rel_probability", y="count", ax=axs[3])
+        sns.histplot(data=dfData, x="count", ax=axs[3])
         # sns.histplot(data=dfData, x="rel_probability", kde=True, weights="count", ax=axs[3])
         plt.show()
 
         dataYaml = [mp.toDict() for mp in setData]
         breakpoint()
 
-        out = OUTPUT_PATH / (problem_name + ".yaml")
-        print(len(dataYaml), skipped)
+        out = OUTPUT_PATH / (problem_name + f"_l{len(setData[0].actions)}" + ".yaml")
         with open(out, "w") as file:
             yaml.dump(dataYaml, file, default_flow_style=None)
 
