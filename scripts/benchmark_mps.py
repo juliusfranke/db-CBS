@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Dict
 import numpy as np
 import seaborn as sns
@@ -162,71 +163,121 @@ def execute_task(task: ExecutionTask) -> Dict[str, float | None]:
 def main():
     instances = [
         # "alcove_unicycle_single",
-        "bugtrap_single",
+        # "bugtrap_single",
+        "parallelpark_single",
     ]
 
     alg = "db-cbs"
-    trials = 10
+    trials = 50
     timelimit = 3
     # test_sizes = [25, 50, 100, 250]
     # test_sizes = [50, 100, 250]
-    test_sizes = [n for n in range(5, 105, 5)]
+    # test_sizes = [n for n in range(5, 105, 5)]
+    test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
+    # test_sizes= [100]
+    # test_sizes = [n for n in range(50, 60, 5)]
     # breakpoint()
     unicycle_path = Path("../new_format_motions/unicycle1_v0")
-    diffusion_name = "model_unicycle_bugtrap_n{}_l5_{}.yaml"
+    diffusion_name = "model_unicycle_bugtrap_n{}_l{}_{}.yaml"
     model_sizes = test_sizes
+    # model_sizes = []
     mps = {
-        "Baseline": {
-            "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
-            "name": "Baseline",
-        },
-        "Diffusion": []
-            # n: {
-            #     "path": unicycle_path / diffusion_name.format(str(n)),
-            #     "name": f"n = {n}",
-            # }
-            # for n in model_sizes
+        "Baseline": [
+            {
+                "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
+                "name": "Baseline l5",
+            },
+            # {
+            #     "path": unicycle_path / "unicycle1_v0_n1000_l10.yaml",
+            #     "name": "Baseline l10",
+            # },
+        ],
+        "Diffusion": [],
+        # n: {
+        #     "path": unicycle_path / diffusion_name.format(str(n)),
+        #     "name": f"n = {n}",
+        # }
+        # for n in model_sizes
     }
+    # mps["Baseline"] = []
+    models = [
+        {
+            "instance": "parallelpark_single",
+            "modelName": "parallelpark_l5",
+            "path": "../../master_thesis_code/bugtrap_l5.pt",
+            "name": "Model l5",
+            "length": 5,
+        },
+        # {
+        #     "modelName": "bugtrap_l5",
+        #     "path": "../../master_thesis_code/bugtrap_l5.pt",
+        #     "name": "Model l5",
+        #     "length": 5,
+        # },
+        # {
+        #     "modelName": "bugtrap_l10",
+        #     "path": "../../master_thesis_code/bugtrap_l10.pt",
+        #     "name": "Model l10",
+        #     "length": 10,
+        # },
+    ]
+    # models = []
+    sample_tasks = []
     for trial in range(trials):
         for model_size in model_sizes:
-            path = unicycle_path / diffusion_name.format(str(model_size), str(trial))
-            # mps["Diffusion"].append({"path": path, "name": f"n = {model_size}","n":model_size})
-            if path.exists():
-                continue
-            
-            subprocess.run(
-                [
-                    "python3",
-                    "../../master_thesis_code/main.py",
-                    "export",
-                    "../../master_thesis_code/bugtrap_rel_logistic.pt",
-                    "-s",
-                    str(model_size),
-                    "-o",
-                    str(path),
-                ]
-            )
+            for model in models:
+                path = (
+                    unicycle_path
+                    / "diff"
+                    / model["instance"]
+                    / model["name"]
+                    / diffusion_name.format(
+                        str(model_size), str(model["length"]), str(trial)
+                    )
+                )
+                if path.exists():
+                    continue
 
-    breakpoint()
+                sample_tasks.append(
+                    [
+                        "python3",
+                        "../../master_thesis_code/main.py",
+                        "export",
+                        model["modelName"],
+                        "-s",
+                        str(model_size),
+                        "-o",
+                        str(path),
+                    ]
+                )
+    # breakpoint()
+
+    use_cpus = psutil.cpu_count(logical=False) - 1
+    print("Using {} CPUs".format(use_cpus))
+    print("Generating datasets")
+    with mp.Pool(use_cpus) as p:
+        for _ in tqdm.tqdm(
+            p.imap_unordered(
+                # subprocess.run,
+                partial(
+                    subprocess.run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ),
+                sample_tasks,
+            ),
+            total=len(sample_tasks),
+        ):
+            pass
+    print("done generating datasets")
+    # subprocess.run(
+    #     sample_task, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    #     )
+
+    # breakpoint()
     tasks = []
     for instance in instances:
         for trial in range(trials):
             for size in test_sizes:
-                tasks.append(
-                    ExecutionTask(
-                        instance,
-                        alg,
-                        trial,
-                        timelimit,
-                        size,
-                        str(mps["Baseline"]["path"]),
-                        mps["Baseline"]["name"],
-                    )
-                )
-                for model_size in model_sizes:
-                    if not model_size == size:
-                        continue
-                    path = unicycle_path / diffusion_name.format(str(model_size), str(trial))
+                for baseline in mps["Baseline"]:
                     tasks.append(
                         ExecutionTask(
                             instance,
@@ -234,11 +285,35 @@ def main():
                             trial,
                             timelimit,
                             size,
-                            str(path),
-                            # model["name"],
-                            "model",
+                            str(baseline["path"]),
+                            baseline["name"],
                         )
                     )
+                for model_size in model_sizes:
+                    if not model_size == size:
+                        continue
+                    for model in models:
+                        path = (
+                            unicycle_path
+                            / "diff"
+                            / model["instance"]
+                            / model["name"]
+                            / diffusion_name.format(
+                                str(model_size), str(model["length"]), str(trial)
+                            )
+                        )
+                        tasks.append(
+                            ExecutionTask(
+                                instance,
+                                alg,
+                                trial,
+                                timelimit,
+                                size,
+                                str(path),
+                                model["name"],
+                                # "model",
+                            )
+                        )
 
     # breakpoint()
     results = {
@@ -267,7 +342,6 @@ def main():
             results["mp_name"].append(task.mp_name)
             results["size"].append(task.size)
 
-    breakpoint()
     results_mean = pd.DataFrame(
         pd.DataFrame(results).groupby(["mp_name", "size"]).mean()
     )
@@ -275,21 +349,26 @@ def main():
 
     # order = ["Baseline", *[diff["name"] for diff in mps["Diffusion"].values()]]
     # sns.boxplot(results, x="size", y="success", hue="mp_name", hue_order=order, medianprops={"color": "r", "linewidth":3})
-    sns.lineplot(results, x="size", y="success", hue="mp_name")
-    plt.savefig("../results/success.png")
-    plt.clf()
-    sns.lineplot(results, x="size", y="duration_dbcbs", hue="mp_name")
-    # sns.boxplot(results, x="size", y="duration_dbcbs", hue="mp_name", hue_order=order, medianprops={"color": "r","linewidth":3})
-    # sns.barplot(results_mean, x="size", y="duration_dbcbs", hue="mp_name")
-    plt.savefig("../results/duration.png")
-    plt.clf()
-    # sns.boxplot(results, x="size", y="cost", hue="mp_name", hue_order=order, medianprops={"color": "r","linewidth":3})
-    sns.lineplot(results, x="size", y="cost", hue="mp_name")
+    # fig_scs = plt.figure(figsize=(16,9))
+    # fig_dur = plt.figure(figsize=(16,9))
+    # fig_cost = plt.figure(figsize=(16,9))
+    # ax_scs = fig_scs.axes
+    # ax_dur = fig_dur.axes
+    # ax_cost = fig_cost.axes
+    fig, ax = plt.subplots(3,sharex=True,figsize=(16,9))
+    sns.lineplot(results, x="size", y="success", hue="mp_name", ax=ax[0])
+    sns.lineplot(results, x="size", y="duration_dbcbs", hue="mp_name", ax=ax[1], legend=False)
+    sns.lineplot(results, x="size", y="cost", hue="mp_name", ax=ax[2], legend=False)
 
-    plt.savefig("../results/cost.png")
+    handles, labels = ax[0].get_legend_handles_labels()
+    ax[0].get_legend().remove()
+    fig.legend(handles, labels,loc="lower center", ncol=4)
 
-    plt.clf()
-    # sns.barplot(results_mean, x="size", y="cost", hue="mp_name")
+    fig.savefig("../results/plot.png")
+
+    # fig_scs.savefig("../results/success.png")
+    # fig_dur.savefig("../results/duration.png")
+    # fig_cost.savefig("../results/cost.png")
 
 
 if __name__ == "__main__":
