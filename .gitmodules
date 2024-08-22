@@ -10,3 +10,6 @@
 [submodule "dynoplan"]
 	path = dynoplan
 	url = git@github.com:juliusfranke/dynoplan.git
+[submodule "master_thesis_code"]
+	path = master_thesis_code
+	url = git@github.com:juliusfranke/master_thesis_code.git
