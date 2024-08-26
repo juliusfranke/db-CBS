@@ -6,9 +6,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import yaml
-from shapely import Point, STRtree, Polygon
 from tqdm import tqdm
-import geopandas as gpd
+from environment import createEnvironment
 
 RESULT_PATH = Path("../results/dataset/")
 OUTPUT_PATH = Path("../output/")
@@ -103,73 +102,11 @@ def main():
             continue
         for problem in model.iterdir():
             problem_name = problem.name
-            params = instance_params(problem_name)
+            env = createEnvironment(problem_name)
             breakpoint()
             export(model_name, problem_name)
 
 
-def rect_from_2p(
-    p0: List[float | int], p1: List[float | int], mode="center_size"
-) -> Polygon:
-    if mode == "min_max":
-        rect = [(p0[0], p0[1]), (p1[0], p0[1]), (p1[0], p1[1]), (p0[0], p1[1])]
-    elif mode == "center_size":
-        rect = [
-            (p0[0] - p1[0] / 2, p0[1] - p1[1] / 2),
-            (p0[0] + p1[0] / 2, p0[1] - p1[1] / 2),
-            (p0[0] + p1[0] / 2, p0[1] + p1[1] / 2),
-            (p0[0] - p1[0] / 2, p0[1] + p1[1] / 2),
-        ]
-    else:
-        raise NotImplementedError(mode)
-
-    return Polygon(rect)
-
-
-def instance_params(instance) -> Dict[str, float | int]:
-    instance_path = Path("../example") / instance
-    instance_path = instance_path.with_suffix(".yaml")
-    with open(instance_path, "r") as file:
-        content = yaml.safe_load(file)
-    env_min = content["environment"]["min"]
-    env_max = content["environment"]["max"]
-    env = rect_from_2p(env_min, env_max, mode="min_max")
-    obstacle_area = []
-    obstacles = []
-    diff = env
-    for obst in content["environment"]["obstacles"]:
-        _type = obst["type"]
-        center = obst["center"]
-        size = obst["size"]
-        if _type != "box":
-            raise NotImplementedError("Obstacle type not implemented")
-        obstacle = rect_from_2p(center, size)
-        # if env.overlaps(obstacle):
-        #     obstacle = env.intersection(obstacle)
-        obstacle_area.append(obstacle.area)
-        obstacles.append(obstacle)
-        # breakpoint()
-        diff = diff.difference(obstacle)
-        # p = gpd.GeoSeries(obstacle)
-        # p.plot()
-    # strtree = STRtree(obstacles)
-    gs = gpd.GeoSeries(diff) 
-    gs.plot()
-    plt.show()
-    breakpoint()
-    obstacle_area = np.array(obstacle_area)
-    n_obstacles = len(obstacle_area)
-    mean_size = np.mean(obstacle_area, dtype=float)
-    env_width = env_max[0] - env_min[0]
-    env_height = env_max[1] - env_min[1]
-    density = np.sum(obstacle_area) / env.area
-    return {
-        "env_width": env_width,
-        "env_height": env_height,
-        "n_obstacles": n_obstacles,
-        "mean_size": mean_size,
-        "density": density,
-    }
 
 
 def export(model_name, problem_name):
