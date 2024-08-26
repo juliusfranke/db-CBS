@@ -173,13 +173,14 @@ def main():
     alg = "db-cbs"
     trials = 50
     timelimit = 5
-    # test_sizes = [25, 50, 100, 250]
+    # test_sizes = [25, 50, 100]
     # test_sizes = [50, 100, 250]
     test_sizes = [n for n in range(5, 105, 5)]
+    test_sizes = np.arange(10,110,10, dtype=int).tolist()
     # test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
     # test_sizes= [100]
     # test_sizes = [n for n in range(50, 60, 5)]
-    # delta_0s = [0.3, 0.5, 0.7, 1.0]
+    # delta_0s = [0.3, 0.5, 0.7]
     delta_0s = [0.5]
     # breakpoint()
     unicycle_path = Path("../new_format_motions/unicycle1_v0")
@@ -213,6 +214,13 @@ def main():
         #     "name": "Model l5",
         #     "length": 5,
         # },
+        # {
+        #     "instance": "bugtrap_single",
+        #     "modelName": "bugtrap_l5_delta",
+        #     "path": "../../master_thesis_code/bugtrap_l5_delta.pt",
+        #     "name": "Model l5 delta",
+        #     "length": 5,
+        # },
         {
             "instance": "bugtrap_single",
             "modelName": "bugtrap_l5",
@@ -238,31 +246,35 @@ def main():
     sample_tasks = []
     for trial in range(trials):
         for model_size in model_sizes:
-            for model in models:
-                path = (
-                    unicycle_path
-                    / "diff"
-                    / model["instance"]
-                    / model["name"]
-                    / diffusion_name.format(
-                        str(model_size), str(model["length"]), str(trial)
+            for delta in delta_0s:
+                for model in models:
+                    path = (
+                        unicycle_path
+                        / "diff"
+                        / model["instance"]
+                        / model["name"]
+                        / str(delta)
+                        / diffusion_name.format(
+                            str(model_size), str(model["length"]), str(trial)
+                        )
                     )
-                )
-                if path.exists():
-                    continue
+                    if path.exists():
+                        continue
 
-                sample_tasks.append(
-                    [
-                        "python3",
-                        "../../master_thesis_code/main.py",
-                        "export",
-                        model["modelName"],
-                        "-s",
-                        str(model_size),
-                        "-o",
-                        str(path),
-                    ]
-                )
+                    sample_tasks.append(
+                        [
+                            "python3",
+                            "../master_thesis_code/main.py",
+                            "export",
+                            model["modelName"],
+                            "-d",
+                            str(delta),
+                            "-s",
+                            str(model_size),
+                            "-o",
+                            str(path),
+                        ]
+                    )
     # breakpoint()
 
     use_cpus = psutil.cpu_count(logical=False) - 1
@@ -313,6 +325,7 @@ def main():
                                 / "diff"
                                 / model["instance"]
                                 / model["name"]
+                                / str(delta_0)
                                 / diffusion_name.format(
                                     str(model_size), str(model["length"]), str(trial)
                                 )
@@ -326,7 +339,7 @@ def main():
                                     size=size,
                                     mp_path=str(path),
                                     mp_name=model["name"],
-                                    delta_0=0.5,
+                                    delta_0=delta_0,
                                 )
                             )
 
@@ -339,7 +352,6 @@ def main():
         "duration_dbcbs": [],
         "delta_0": [],
     }
-    breakpoint()
     parallel = True
     if parallel and len(tasks) > 1:
         use_cpus = psutil.cpu_count(logical=False) - 1
@@ -373,12 +385,16 @@ def main():
     sns.lineplot(
         results, x="size", y="success", hue="mp_name", style="delta_0", ax=ax[0]
     )
+    if len(delta_0s) != 1:
+        style = "delta_0"
+    else:
+        style = None
     sns.lineplot(
         results,
         x="size",
         y="duration_dbcbs",
         hue="mp_name",
-        style="delta_0",
+        style=style,
         ax=ax[1],
         legend=False,
     )
@@ -387,7 +403,7 @@ def main():
         x="size",
         y="cost",
         hue="mp_name",
-        style="delta_0",
+        style=style,
         ax=ax[2],
         legend=False,
     )
