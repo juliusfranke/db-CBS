@@ -11,10 +11,12 @@ import matplotlib.pyplot as plt
 import psutil
 import seaborn as sns
 import tqdm
+import pandas as pd
 import yaml
 
 # import checker
 from main_dbcbs_mod import run_dbcbs
+from instance import createRandomInstance
 
 
 @dataclass
@@ -82,7 +84,7 @@ def run_search_visualize(script, filename_env, filename_trajs, filename_result):
     )
 
 
-def execute_task(task: ExecutionTask) -> Dict[str, float | None]:
+def execute_task(task: ExecutionTask) -> Dict[str, float | str | None]:
     scripts_path = Path("../scripts")
     results_path = Path("../results")
     # tuning_path = Path("../tuning")
@@ -145,21 +147,38 @@ def execute_task(task: ExecutionTask) -> Dict[str, float | None]:
             print("WARNING: CHECKER FAILED -> DELETING stats!")
             (result_folder / "stats.yaml").unlink(missing_ok=True)
 
+    # vis_script = scripts_path / "visualize.py"
+    # for file in visualize_files:
+    #     run_visualize(vis_script, env, result_folder / file)
+    result["instance"] = task.instance
     return result
+
+
+rand_instance_config = {
+    "env_min": [2, 2],
+    "env_max": [6, 6],
+    "obstacle_per_sqm": 0.1,
+    "allow_disconnect": False,
+    "size_increment": 0.5,
+    "save": True,
+}
 
 
 def main():
     instances = [
         # "alcove_unicycle_single",
-        "bugtrap_single",
+        # "bugtrap_single",
+        # "test",
+        *[createRandomInstance(**rand_instance_config).name for _ in range(5)],
         # "parallelpark_single",
     ]
 
     alg = "db-cbs"
-    trials = 1000
-    timelimit = 5
+    trials = 50
+    timelimit = 3
     test_size = 100
-    delta_0s = [0.3, 0.5, 0.7]
+    delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
+    # delta_0s = [0.5, 0.7]
 
     unicycle_path = Path("../new_format_motions/unicycle1_v0")
     mps = {
@@ -188,8 +207,8 @@ def main():
                         )
                     )
 
-    # breakpoint()
     results = {
+        "instance": [],
         "mp_name": [],
         "size": [],
         "success": [],
@@ -226,34 +245,20 @@ def main():
     # ax_scs = fig_scs.axes
     # ax_dur = fig_dur.axes
     # ax_cost = fig_cost.axes
+    # breakpoint()
     fig, ax = plt.subplots(3, sharex=True, figsize=(16, 9))
+    sns.lineplot(results, x="delta_0", y="success", hue="instance", ax=ax[0])
     sns.lineplot(
-        results, x="size", y="success", hue="mp_name", style="delta_0", ax=ax[0]
+        results, x="delta_0", y="duration_dbcbs", hue="instance", ax=ax[1], legend=False
     )
-    sns.lineplot(
-        results,
-        x="size",
-        y="duration_dbcbs",
-        hue="mp_name",
-        style="delta_0",
-        ax=ax[1],
-        legend=False,
-    )
-    sns.lineplot(
-        results,
-        x="size",
-        y="cost",
-        hue="mp_name",
-        style="delta_0",
-        ax=ax[2],
-        legend=False,
-    )
+    sns.lineplot(results, x="delta_0", y="cost", hue="instance", ax=ax[2], legend=False)
 
+    plt.setp(ax, xticks=delta_0s)
     handles, labels = ax[0].get_legend_handles_labels()
     ax[0].get_legend().remove()
     fig.legend(handles, labels, loc="lower center", ncol=4)
 
-    fig.savefig("../results/plot.png")
+    fig.savefig("../results/creation.png")
 
     # fig_scs.savefig("../results/success.png")
     # fig_dur.savefig("../results/duration.png")

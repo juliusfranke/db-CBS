@@ -11,7 +11,7 @@ import yaml
 sys.path.append(os.getcwd())
 
 
-def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | None]:
+def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | str | None]:
     with tempfile.TemporaryDirectory() as tmpdirname:
         p = Path(tmpdirname)
         filename_cfg = p / "cfg.yaml"
@@ -78,4 +78,11 @@ def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | None]:
                 cost = None
             if duration_dbcbs == 0:
                 duration_dbcbs = None
-            return {"cost": cost, "duration_dbcbs": duration_dbcbs, "success": bool(cost), "mp_name": cfg["mp_name"], "size": cfg["num_primitives_0"], "delta_0":cfg["delta_0"]}
+            return {
+                "cost": cost,
+                "duration_dbcbs": duration_dbcbs,
+                "success": bool(cost),
+                "mp_name": cfg["mp_name"],
+                "size": cfg["num_primitives_0"],
+                "delta_0": cfg["delta_0"],
+            }
