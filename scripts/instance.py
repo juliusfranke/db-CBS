@@ -1,6 +1,7 @@
 from copy import deepcopy
+import random
+import networkx as nx
 import uuid
-from unicodedata import decimal
 import numpy as np
 from shapely import MultiPolygon, Point, Polygon, LinearRing
 import geopandas as gpd
@@ -65,10 +66,16 @@ class Obstacle:
 
 class Environment:
     def __init__(
-        self, min: List[float | int] | np.ndarray, max: List[float | int] | np.ndarray
+        self,
+        min: List[float | int] | np.ndarray,
+        max: List[float | int] | np.ndarray,
+        grid_size: float | int = 1,
     ) -> None:
         shell = [(min[0], min[1]), (max[0], min[1]), (max[0], max[1]), (min[0], max[1])]
         self.dimensions = np.array([max[0] - min[0], max[1] - min[1]])
+        self.grid_size = grid_size
+        self.grid_x = np.arange(min[0] + self.grid_size / 2, max[0], self.grid_size)
+        self.grid_y = np.arange(min[1] + self.grid_size / 2, max[1], self.grid_size)
         self.ring = LinearRing(shell)
 
         self.shape_complete = Polygon(shell)
@@ -81,10 +88,30 @@ class Environment:
         self.gpd_shape_free = gpd.GeoSeries(self.shape_free)
         self.area = self.shape_free.area
 
-        self.start_p: Point | None = None
-        self.goal_p: Point | None = None
-        self.start: np.ndarray | None = None
-        self.goal: np.ndarray | None = None
+        self.graph = nx.Graph()
+        for x in self.grid_x:
+            for y in self.grid_y:
+                self.graph.add_node((x, y), pos=(x, y))
+                for n_x, n_y in [
+                    [x - self.grid_size, y],
+                    [x, y - self.grid_size],
+                    [x - self.grid_size, y - self.grid_size],
+                    [x + self.grid_size, y - self.grid_size],
+                ]:
+                    if n_x not in self.grid_x or n_y not in self.grid_y:
+                        continue
+                    self.graph.add_edge(
+                        (x, y),
+                        (n_x, n_y),
+                        weight=np.linalg.norm(np.array([n_x - x, n_y - y])),
+                    )
+
+        # breakpoint()
+        # self.graph.remove_node(node)
+
+    def get_free_node(self):
+        node = random.choice(list(self.graph.nodes))
+        return node
 
     def add_obstacle(self, obstacle: Obstacle):
         self.obstacles.append(obstacle)
@@ -140,8 +167,23 @@ class Environment:
         obstacles = [obstacle.yaml for obstacle in self.obstacles]
         return {"min": [0, 0], "max": self.dimensions.tolist(), "obstacles": obstacles}
 
+    def finalize(self):
+        for obstacle in self.obstacles:
+            # neighbors = list(self.graph.neighbors(tuple(obstacle.center)))
+            neighbors = obstacle.center + np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
+            edges = self.graph.edges
+            for i in range(4):
+                edge = (tuple(neighbors[i - 1]), tuple(neighbors[i]))
+                if edge in edges:
+                    self.graph.remove_edge(tuple(neighbors[i - 1]), tuple(neighbors[i]))
+            self.graph.remove_node(tuple(obstacle.center))
+
     def plot_env(self, ax=None):
         self.gpd_ring.plot(ax=ax)
+        pos = nx.get_node_attributes(self.graph, "pos")
+        nx.draw(self.graph, pos, node_size=5, ax=ax)
+        # labels = nx.get_edge_attributes(self.graph, "weight")
+        # nx.draw_networkx_edge_labels(self.graph, pos, edge_labels=labels, ax=ax)
         for obstacle in self.obstacles:
             obstacle.plot(ax=ax)
 
@@ -174,39 +216,27 @@ class Instance:
             self.start = start
             self.goal = goal
         else:
-            self.genStartGoal()
+            self.gen_start_goal()
 
-    def genStartGoal(self) -> None:
-        def pointOnSurface(
-            other: Point | None = None,
-            distance_0: np.floating[Any] | None = None,
-            max_tries: int = 1000,
-        ) -> np.ndarray:
-            tries = 0
-            while True:
-                point = np.round(
-                    np.random.random(size=2).flatten() * self.env.dimensions, decimals=1
-                )
-                point_p = Point(point)
-                if point_p.within(self.env.shape_free):
-                    if not isinstance(distance_0, float) or not isinstance(
-                        other, Point
-                    ):
-                        break
-                    elif other.distance(point_p) >= distance_0:
-                        break
-                    else:
-                        distance_0 *= 0.995
-                tries += 1
-                if tries > max_tries:
-                    raise TimeoutError("could not find goal point")
-            theta = (np.random.random() * 2 * np.pi) - np.pi
-            point = np.array([*point, theta])
-            return point
+    def gen_start_goal(self) -> None:
+        paths = dict(nx.all_pairs_shortest_path(self.env.graph))
+        lengths = dict(nx.all_pairs_shortest_path_length(self.env.graph))
+        max_len = 0
+        max_start = (0, 0)
+        max_goal = (0, 0)
 
-        self.start = pointOnSurface()
-        start_p = Point(self.start[:2])
-        self.goal = pointOnSurface(start_p, np.linalg.norm(self.env.dimensions))
+        for start, goals in lengths.items():
+            for goal, length in goals.items():
+                if length > max_len:
+                    max_len = length
+                    max_start = start
+                    max_goal = goal
+        first_move = np.array(paths[max_start][max_goal][1]) - np.array(max_start)
+        theta_start = np.arctan2(first_move[1], first_move[0])
+        last_move = -(np.array(paths[max_start][max_goal][-2]) - np.array(max_goal))
+        theta_goal = np.arctan2(last_move[1], last_move[0])
+        self.start = np.array([*max_start, theta_start])
+        self.goal = np.array([*max_goal, theta_goal])
 
     @property
     def yaml(self) -> Dict[str, Any]:
@@ -222,19 +252,13 @@ class Instance:
         }
 
     def plotInstance(self, ax=None) -> None:
-        start_u = np.cos(self.start[2])
-        start_v = np.sin(self.start[2])
-        goal_u = np.cos(self.goal[2])
-        goal_v = np.sin(self.goal[2])
-        print(self.start, start_u, start_v)
-        print(self.goal, goal_u, goal_v)
+        start_u = np.cos(self.start[2]) * self.env.grid_size / 2
+        start_v = np.sin(self.start[2]) * self.env.grid_size / 2
+        goal_u = np.cos(self.goal[2]) * self.env.grid_size / 2
+        goal_v = np.sin(self.goal[2]) * self.env.grid_size / 2
 
         self.env.plot_env(ax=ax)
-        if np.min(self.env.dimensions) <= 3:
-            scale = 4
-        else:
-            scale = np.min(self.env.dimensions) / 2
-        print(scale)
+        scale = 1
         if ax is None:
             plt.quiver(
                 self.start[0],
@@ -304,52 +328,26 @@ def getInstance(instance_name) -> Instance:
         start=np.array(problem["start"]),
         goal=np.array(problem["goal"]),
     )
-    return instance 
+    return instance
 
 
-def repeat(func):
-    def wrapper(**kwargs):
-        while True:
-            try:
-                print("try")
-                instance = func(**kwargs)
-                break
-            except:
-                print("exception")
-                continue
-        return instance
-
-    return wrapper
-
-
-@repeat
 def createRandomInstance(
-    env_min: List[int | float] | np.ndarray = [2, 2],
+    env_min: List[int | float] | np.ndarray = [5, 5],
     env_max: List[int | float] | np.ndarray = [10, 10],
     obstacle_per_sqm: int | float = 0.25,
     allow_disconnect: bool = False,
-    size_increment: float = 1.0,
+    grid_size: float = 0.5,
     save=False,
 ) -> Instance:
     max = (np.random.random(size=2) * np.array([env_max])).flatten()
-    max = np.round(np.clip(max, env_min, np.inf), decimals=0)
-    env = Environment(min=[0, 0], max=max)
+    max = np.round(np.clip(a=max, a_min=env_min, a_max=np.inf), decimals=0)
+    env = Environment(min=[0, 0], max=max, grid_size=grid_size)
     n_obstacles_max = np.maximum(int(env.area * obstacle_per_sqm), 1)
     while len(env.obstacles) <= n_obstacles_max:
-        tries = 0
         while True:
-            size = np.clip(
-                (np.random.random(size=2) * 3).flatten(), size_increment, np.inf
-            )
-            size -= np.mod(size, size_increment)
-            center = np.clip(
-                (np.random.random(size=2) * max).flatten(), size / 2, np.inf
-            )
-            center -= np.mod(center, size_increment / 2)
+            size = [grid_size, grid_size]
+            center = list(env.get_free_node())
             obstacle = Obstacle(obstacle_type="box", center=center, size=size)
-            tries += 1
-            # if tries <= 1e9:
-            #     raise TimeoutError()
             if env.shape_free.contains(obstacle.shape):
                 break
         env.add_obstacle(obstacle)
@@ -357,6 +355,7 @@ def createRandomInstance(
             continue
         elif not env.is_connected:
             env.remove_obstacle(obstacle)
+    env.finalize()
     instance = Instance(env=env, name=str(uuid.uuid4()), robot_type="unicycle1_v0")
     if save:
         with open(f"../example/{instance.name}.yaml", "w") as file:
@@ -365,18 +364,15 @@ def createRandomInstance(
 
 
 def main():
-    # instance = createRandomInstance(
-    #     env_min=[2, 2],
-    #     env_max=[6, 6],
-    #     obstacle_per_sqm=0.1,
-    #     allow_disconnect=False,
-    #     size_increment=1,
-    #     save=False,
-    # )
-    instance =getInstance("c307730b-5f33-4815-a4ef-84549762158f") 
-    # with open("test.yaml", "w") as file:
-    #     yaml.safe_dump(instance.yaml, file, default_flow_style=None)
-    breakpoint()
+    instance = createRandomInstance(
+        env_min=[3, 3],
+        env_max=[6, 6],
+        obstacle_per_sqm=0.2,
+        allow_disconnect=False,
+        grid_size=1,
+        save=False,
+    )
+    # instance =getInstance("c307730b-5f33-4815-a4ef-84549762158f")
 
     fig, ax = plt.subplots(1, 2)
     instance.plotInstance(ax=ax[0])
