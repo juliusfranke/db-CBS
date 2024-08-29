@@ -155,29 +155,32 @@ def execute_task(task: ExecutionTask) -> Dict[str, float | str | None]:
 
 
 rand_instance_config = {
-    "env_min": [2, 2],
-    "env_max": [6, 6],
-    "obstacle_per_sqm": 0.1,
+    "env_min": [3, 3],
+    "env_max": [8, 8],
+    "obstacle_min": 0.1,
+    "obstacle_max": 0.5,
     "allow_disconnect": False,
-    "size_increment": 0.5,
+    "grid_size": 1,
     "save": True,
 }
 
 
 def main():
+    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(100)]
     instances = [
         # "alcove_unicycle_single",
         # "bugtrap_single",
         # "test",
-        *[createRandomInstance(**rand_instance_config).name for _ in range(5)],
+        *[rand_inst.name for rand_inst in random_instances],
         # "parallelpark_single",
     ]
 
     alg = "db-cbs"
-    trials = 50
-    timelimit = 3
+    trials = 10
+    timelimit = 2
     test_size = 100
-    delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
+    # delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
+    delta_0s = [0.5]
     # delta_0s = [0.5, 0.7]
 
     unicycle_path = Path("../new_format_motions/unicycle1_v0")
@@ -246,23 +249,34 @@ def main():
     # ax_dur = fig_dur.axes
     # ax_cost = fig_cost.axes
     # breakpoint()
-    fig, ax = plt.subplots(3, sharex=True, figsize=(16, 9))
-    sns.lineplot(results, x="delta_0", y="success", hue="instance", ax=ax[0])
-    sns.lineplot(
-        results, x="delta_0", y="duration_dbcbs", hue="instance", ax=ax[1], legend=False
-    )
-    sns.lineplot(results, x="delta_0", y="cost", hue="instance", ax=ax[2], legend=False)
+    if len(delta_0s) > 1:
+        fig, ax = plt.subplots(3, sharex=True, figsize=(16, 9))
+        sns.lineplot(results, x="delta_0", y="success", hue="instance", ax=ax[0])
+        sns.lineplot(
+            results, x="delta_0", y="duration_dbcbs", hue="instance", ax=ax[1], legend=False
+        )
+        sns.lineplot(results, x="delta_0", y="cost", hue="instance", ax=ax[2], legend=False)
 
-    plt.setp(ax, xticks=delta_0s)
-    handles, labels = ax[0].get_legend_handles_labels()
-    ax[0].get_legend().remove()
-    fig.legend(handles, labels, loc="lower center", ncol=4)
+        plt.setp(ax, xticks=delta_0s)
+        handles, labels = ax[0].get_legend_handles_labels()
+        ax[0].get_legend().remove()
+        fig.legend(handles, labels, loc="lower center", ncol=4)
 
-    fig.savefig("../results/creation.png")
+        fig.savefig("../results/creation_delta.png")
+    else:
+        fig, ax = plt.subplots(3, figsize=(16, 9))
+        sns.boxplot(results, x="success", ax=ax[0])
+        sns.boxplot(results, x="duration_dbcbs", ax=ax[1])
+        sns.boxplot(results, x="cost", ax=ax[2])
+        fig.savefig("../results/creation.png")
 
     # fig_scs.savefig("../results/success.png")
     # fig_dur.savefig("../results/duration.png")
     # fig_cost.savefig("../results/cost.png")
+    for random_instance in random_instances:
+        dataset_instance = Path("../results") / "dataset" / random_instance.name  
+        dataset_instance = dataset_instance.with_suffix(".yaml")
+        random_instance.save(dataset_instance, extended = True)
 
 
 if __name__ == "__main__":
