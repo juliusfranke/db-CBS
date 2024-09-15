@@ -191,8 +191,8 @@ class Environment:
 
     def plot_env(self, ax=None):
         self.gpd_ring.plot(ax=ax)
-        pos = nx.get_node_attributes(self.graph, "pos")
-        nx.draw(self.graph, pos, node_size=5, ax=ax)
+        # pos = nx.get_node_attributes(self.graph, "pos")
+        # nx.draw(self.graph, pos, node_size=5, ax=ax)
         # labels = nx.get_edge_attributes(self.graph, "weight")
         # nx.draw_networkx_edge_labels(self.graph, pos, edge_labels=labels, ax=ax)
         for obstacle in self.obstacles:
@@ -272,9 +272,9 @@ class Instance:
         with open(path, "w") as file:
             yaml.safe_dump(data, file, default_flow_style=None)
 
-    def __del__(self):
-        if self.default_path.exists():
-            self.default_path.unlink()
+    # def __del__(self):
+    #     if self.default_path.exists():
+    #         self.default_path.unlink()
 
     def plotInstance(self, ax=None) -> None:
         start_u = np.cos(self.start[2]) * self.env.grid_size / 2
@@ -328,8 +328,11 @@ class Instance:
             )
 
 
-def getInstance(instance_name) -> Instance:
-    instance_path = Path("../example") / instance_name
+def getInstance(instance_name, path=None) -> Instance:
+    if path:
+        instance_path = Path(path) / instance_name
+    else:
+        instance_path = Path("../example") / instance_name
     instance_path = instance_path.with_suffix(".yaml")
 
     with open(instance_path, "r") as file:
@@ -337,7 +340,10 @@ def getInstance(instance_name) -> Instance:
 
     env_min = content["environment"]["min"]
     env_max = content["environment"]["max"]
-    grid_size = content["environment"]["grid_size"]
+    if "grid_size" in content["environment"].keys():
+        grid_size = content["environment"]["grid_size"]
+    else:
+        grid_size = 1
     env = Environment(min=env_min, max=env_max, grid_size=grid_size)
 
     for obstacle in content["environment"]["obstacles"]:
@@ -393,7 +399,7 @@ def createRandomInstance(
     env.finalize()
     instance = Instance(env=env, name=str(uuid.uuid4()), robot_type="unicycle1_v0")
     if save:
-        instance.save()
+        instance.save(extended=True)
         # instance.save(path=Path(f"../{instance.name}.yaml"), extended=True)
     # if save:
     #     with open(f"../example/{instance.name}.yaml", "w") as file:
@@ -402,20 +408,20 @@ def createRandomInstance(
 
 
 def main():
-    # instance = createRandomInstance(
-    #     env_min=[4, 4],
-    #     env_max=[8, 8],
-    #     obstacle_min=0.1,
-    #     obstacle_max=0.5,
-    #     allow_disconnect=False,
-    #     grid_size=1,
-    #     save=True,
-    # )
-    instance =getInstance("c307730b-5f33-4815-a4ef-84549762158f")
+    instance = createRandomInstance(
+        env_min=[6, 6],
+        env_max=[6, 6],
+        obstacle_min=0.1,
+        obstacle_max=0.3,
+        allow_disconnect=False,
+        grid_size=1,
+        save=True,
+    )
+    # instance =getInstance("bugtrap_single")
 
     fig, ax = plt.subplots(1, 1)
     instance.plotInstance(ax=ax)
-    ic(instance.env.info)
+    # ic(instance.env.info)
 
     plt.show()
     # instance.env.plot_free(ax=ax[1])

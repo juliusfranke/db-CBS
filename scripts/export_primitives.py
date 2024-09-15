@@ -7,7 +7,6 @@ import pandas as pd
 import seaborn as sns
 import yaml
 from tqdm import tqdm
-from environment import createEnvironment
 
 RESULT_PATH = Path("../results/dataset/")
 OUTPUT_PATH = Path("../output/")
@@ -19,15 +18,17 @@ class MotionPrimitive:
         start: np.ndarray,
         actions: np.ndarray,
         delta_0: float,
+        instance_data: Dict[str, int | float],
         goal: np.ndarray | None = None,
         states: np.ndarray | None = None,
     ) -> None:
         self.rel_probability: float = 0.0
         self.delta_0: float = delta_0
-        self.cdf: float = 0.0
+        # self.cdf: float = 0.0
         self.count: int = 1
         self.start = np.array([0, 0, start[2]])
         self.actions = actions
+        self.instance_data = instance_data
         if goal:
             self.goal = diff(start, goal)
         else:
@@ -49,10 +50,13 @@ class MotionPrimitive:
             for key, value in self.__dict__.items()
             if (value is not None and isinstance(value, np.ndarray))
         }
+        for key, value in self.instance_data.items():
+            data[key] = value
+
         data["count"] = self.count
         data["delta_0"] = self.delta_0
-        # data["cdf"] = self.cdf
         data["rel_probability"] = self.rel_probability
+
         return data
 
     def __hash__(self) -> int:
@@ -96,26 +100,35 @@ def diff(start: np.ndarray, goal: np.ndarray) -> np.ndarray:
 
 def main():
     for model in RESULT_PATH.iterdir():
+        if model.is_file():
+            continue
         model_name = model.name
         print(f"Export data from {model_name} ? (y/n)")
         if input() in ["n", "no"]:
             continue
-        for problem in model.iterdir():
+        data = []
+        problems = list(model.iterdir())
+        for problem in tqdm(problems):
             problem_name = problem.name
-            env = createEnvironment(problem_name)
-            breakpoint()
-            export(model_name, problem_name)
+            data.extend(load_data(model_name, problem_name))
+        with open(OUTPUT_PATH / "test.yaml", "w") as file:
+            yaml.safe_dump(data, file, default_flow_style=None)
 
 
-
-
-def export(model_name, problem_name):
-    debug = True
+def load_data(model_name, problem_name, debug=False):
     data: Dict[str, MotionPrimitive] = {}
     problem_path = RESULT_PATH / model_name / problem_name
+    instance_path = (RESULT_PATH / problem_name).with_suffix(".yaml")
+    with open(instance_path, "r") as file:
+        instance_data = yaml.safe_load(file)
 
+    instance_data = {
+        key: value
+        for key, value in instance_data["environment"].items()
+        if isinstance(value, (int, float))
+    }
     total_len = len([path for path in problem_path.glob("**/stats.yaml")])
-    pbar = tqdm(range(total_len))
+    pbar = tqdm(range(total_len), leave=False)
     for delta in problem_path.iterdir():
         i = 0
         delta_0 = float(delta.name)
@@ -133,7 +146,12 @@ def export(model_name, problem_name):
             for primitive in primitives:
                 start = np.array(primitive["start"])
                 actions = np.array(primitive["actions"])
-                mp = MotionPrimitive(start=start, actions=actions, delta_0=delta_0)
+                mp = MotionPrimitive(
+                    start=start,
+                    actions=actions,
+                    instance_data=instance_data,
+                    delta_0=delta_0,
+                )
                 # breakpoint()
                 # check = any(_mp == mp for _mp in data)
                 hash = str(mp.__hash__())
@@ -146,17 +164,23 @@ def export(model_name, problem_name):
             i += 1
     pbar.close()
     setData = list(data.values())
-    print(len(setData))
+    # print(len(setData))
     dictData = {}
     dictData["theta0"] = [mp.start[2] for mp in setData]
     dictData["s"] = [np.mean(mp.actions[:, 0]) for mp in setData]
     dictData["phi"] = [np.mean(mp.actions[:, 1]) for mp in setData]
     dictData["count"] = [mp.count for mp in setData]
     dictData["delta_0"] = [mp.delta_0 for mp in setData]
+    # dictData["mp"] = setData
 
     dfData = pd.DataFrame(dictData)
-    total_counts = dfData.groupby("delta_0").sum()["count"].to_dict()
-    max_counts = dfData.groupby("delta_0").max()["count"].to_dict()
+    # breakpoint()
+    total_counts = (
+        dfData[["delta_0", "count"]].groupby("delta_0").sum()["count"].to_dict()
+    )
+    max_counts = (
+        dfData[["delta_0", "count"]].groupby("delta_0").max()["count"].to_dict()
+    )
     dfData["rel_probability"] = [
         count / max_counts[delta_0]
         for count, delta_0 in dfData[["count", "delta_0"]].to_numpy()
@@ -166,64 +190,68 @@ def export(model_name, problem_name):
         for count, delta_0 in dfData[["count", "delta_0"]].to_numpy()
     ]
     # dfData["probability"] = dfData["count"] / total_count
-    dfData = dfData.sort_values("probability")
-    dfData["cdf"] = dfData["probability"].cumsum()
-    dfData = dfData.sort_index()
+
+    # dfData = dfData.sort_values("probability")
+    # dfData["cdf"] = dfData["probability"].cumsum()
+    # dfData = dfData.sort_index()
     for i, mp in enumerate(setData):
-        mp.cdf = float(dfData["cdf"][i])
+        # mp.cdf = float(dfData["cdf"][i])
         mp.rel_probability = float(dfData["rel_probability"][i])
-    # dfData = pd.DataFrame(dfData[dfData["count"]>1])
+    # return setData
+    # # dfData = pd.DataFrame(dfData[dfData["count"]>1])
+    #
+    # fig, axs = plt.subplots(4, 1)
+    # # sns.set_style("white")
+    # # sns.set
+    # sns.histplot(
+    #     data=dfData,
+    #     x="theta0",
+    #     weights="probability",
+    #     hue="delta_0",
+    #     kde=True,
+    #     bins=50,
+    #     ax=axs[0],
+    # )
+    # sns.histplot(
+    #     data=dfData,
+    #     x="s",
+    #     weights="probability",
+    #     hue="delta_0",
+    #     kde=True,
+    #     bins=50,
+    #     ax=axs[1],
+    # )
+    # sns.histplot(
+    #     data=dfData,
+    #     x="phi",
+    #     weights="probability",
+    #     hue="delta_0",
+    #     kde=True,
+    #     bins=50,
+    #     ax=axs[2],
+    # )
+    # # # sns.lineplot(data=dfData, x="rel_probability", y="count", ax=axs[3])
+    # # sns.histplot(data=dfData, x="count", ax=axs[3])
+    # sns.histplot(
+    #     data=dfData,
+    #     x="rel_probability",
+    #     kde=True,
+    #     weights="probability",
+    #     hue="delta_0",
+    #     bins=20,
+    #     ax=axs[3],
+    # )
+    # sns.set_palette(sns.color_palette("rocket"))
+    # plt.show()
 
-    fig, axs = plt.subplots(4, 1)
-    # sns.set_style("white")
-    # sns.set
-    sns.histplot(
-        data=dfData,
-        x="theta0",
-        weights="probability",
-        hue="delta_0",
-        kde=True,
-        bins=50,
-        ax=axs[0],
-    )
-    sns.histplot(
-        data=dfData,
-        x="s",
-        weights="probability",
-        hue="delta_0",
-        kde=True,
-        bins=50,
-        ax=axs[1],
-    )
-    sns.histplot(
-        data=dfData,
-        x="phi",
-        weights="probability",
-        hue="delta_0",
-        kde=True,
-        bins=50,
-        ax=axs[2],
-    )
-    # # sns.lineplot(data=dfData, x="rel_probability", y="count", ax=axs[3])
-    # sns.histplot(data=dfData, x="count", ax=axs[3])
-    sns.histplot(
-        data=dfData,
-        x="rel_probability",
-        kde=True,
-        weights="probability",
-        hue="delta_0",
-        bins=20,
-        ax=axs[3],
-    )
-    sns.set_palette(sns.color_palette("rocket"))
-    plt.show()
+    # breakpoint()
+    dataYaml = [mp.toDict() for mp in setData if mp.rel_probability > 0.1]
+    return dataYaml
 
-    breakpoint()
-    dataYaml = [mp.toDict() for mp in setData]
-
-    out = OUTPUT_PATH / (problem_name + f"_l{len(setData[0].actions)}" + ".yaml")
-    with open(out, "w") as file:
-        yaml.dump(dataYaml, file, default_flow_style=None)
+    #
+    # out = OUTPUT_PATH / (problem_name + f"_l{len(setData[0].actions)}" + ".yaml")
+    # with open(out, "w") as file:
+    #     yaml.dump(dataYaml, file, default_flow_style=None)
 
 
 if __name__ == "__main__":

@@ -155,7 +155,7 @@ def execute_task(task: ExecutionTask) -> Dict[str, float | str | None]:
 
 
 rand_instance_config = {
-    "env_min": [3, 3],
+    "env_min": [4, 4],
     "env_max": [8, 8],
     "obstacle_min": 0.1,
     "obstacle_max": 0.5,
@@ -170,18 +170,16 @@ def main():
     instances = [
         # "alcove_unicycle_single",
         # "bugtrap_single",
-        # "test",
         *[rand_inst.name for rand_inst in random_instances],
         # "parallelpark_single",
     ]
 
     alg = "db-cbs"
-    trials = 10
+    trials = 50
     timelimit = 2
     test_size = 100
     # delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
     delta_0s = [0.5]
-    # delta_0s = [0.5, 0.7]
 
     unicycle_path = Path("../new_format_motions/unicycle1_v0")
     mps = {
@@ -260,7 +258,7 @@ def main():
         plt.setp(ax, xticks=delta_0s)
         handles, labels = ax[0].get_legend_handles_labels()
         ax[0].get_legend().remove()
-        fig.legend(handles, labels, loc="lower center", ncol=4)
+        fig.legend(handles, labels, loc="lower center", ncol=5)
 
         fig.savefig("../results/creation_delta.png")
     else:

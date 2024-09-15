@@ -22,6 +22,7 @@ import psutil
 from benchmark_stats import run_benchmark_stats
 from benchmark_table import write_table
 import paper_tables
+from instance import createRandomInstance
 
 
 @dataclass
@@ -89,7 +90,7 @@ def run_search_visualize(script, filename_env, filename_trajs, filename_result):
     )
 
 
-def execute_task(task: ExecutionTask) -> Dict[str, float | None]:
+def execute_task(task: ExecutionTask) -> Dict[str, str | float | None]:
     scripts_path = Path("../scripts")
     results_path = Path("../results")
     # tuning_path = Path("../tuning")
@@ -164,19 +165,35 @@ def execute_task(task: ExecutionTask) -> Dict[str, float | None]:
 
 
 def main():
+    rand_instance_config = {
+        "env_min": [4, 4],
+        "env_max": [8, 8],
+        "obstacle_min": 0.1,
+        "obstacle_max": 0.5,
+        "allow_disconnect": False,
+        "grid_size": 1,
+        "save": True,
+    }
+    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(5)]
     instances = [
         # "alcove_unicycle_single",
-        "bugtrap_single",
+        # "bugtrap_single",
+        *[rand_inst.name for rand_inst in random_instances],
         # "parallelpark_single",
     ]
+    # instances = [
+    #     # "alcove_unicycle_single",
+    #     "bugtrap_single",
+    #     # "parallelpark_single",
+    # ]
 
     alg = "db-cbs"
-    trials = 50
-    timelimit = 5
+    trials = 5
+    timelimit = 10
     # test_sizes = [25, 50, 100]
     # test_sizes = [50, 100, 250]
     test_sizes = [n for n in range(5, 105, 5)]
-    test_sizes = np.arange(10,110,10, dtype=int).tolist()
+    test_sizes = np.arange(10, 110, 10, dtype=int).tolist()
     # test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
     # test_sizes= [100]
     # test_sizes = [n for n in range(50, 60, 5)]
@@ -184,14 +201,18 @@ def main():
     delta_0s = [0.5]
     # breakpoint()
     unicycle_path = Path("../new_format_motions/unicycle1_v0")
-    diffusion_name = "model_unicycle_bugtrap_n{}_l{}_{}.yaml"
+    diffusion_name = "model_unicycle_n{}_l{}_{}.yaml"
     model_sizes = test_sizes
     # model_sizes = []
     mps = {
         "Baseline": [
             {
                 "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
-                "name": "Baseline l5",
+                "name": "Baseline l5 n1000",
+            },
+            {
+                "path": unicycle_path / "unicycle1_v0_n10000_l5.yaml",
+                "name": "Baseline l5 n10000",
             },
             # {
             #     "path": unicycle_path / "unicycle1_v0_n1000_l10.yaml",
@@ -221,20 +242,20 @@ def main():
         #     "name": "Model l5 delta",
         #     "length": 5,
         # },
-        {
-            "instance": "bugtrap_single",
-            "modelName": "bugtrap_l5",
-            "path": "../../master_thesis_code/bugtrap_l5.pt",
-            "name": "Model l5",
-            "length": 5,
-        },
-        {
-            "instance": "bugtrap_single",
-            "modelName": "bugtrap_l5_new",
-            "path": "../../master_thesis_code/bugtrap_l5_new.pt",
-            "name": "Model l5 new",
-            "length": 5,
-        },
+        # {
+        #     "instance": "bugtrap_single",
+        #     "modelName": "bugtrap_l5",
+        #     "path": "../../master_thesis_code/bugtrap_l5.pt",
+        #     "name": "Model l5",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "rand_env_l5",
+        #     "path": "../../master_thesis_code/bugtrap_l5_new.pt",
+        #     "name": "Model l5 env",
+        #     "length": 5,
+        # },
         # {
         #     "modelName": "bugtrap_l10",
         #     "path": "../../master_thesis_code/bugtrap_l10.pt",
@@ -244,37 +265,40 @@ def main():
     ]
     # models = []
     sample_tasks = []
-    for trial in range(trials):
-        for model_size in model_sizes:
-            for delta in delta_0s:
-                for model in models:
-                    path = (
-                        unicycle_path
-                        / "diff"
-                        / model["instance"]
-                        / model["name"]
-                        / str(delta)
-                        / diffusion_name.format(
-                            str(model_size), str(model["length"]), str(trial)
+    for instance in instances:
+        for trial in range(trials):
+            for model_size in model_sizes:
+                for delta in delta_0s:
+                    for model in models:
+                        path = (
+                            unicycle_path
+                            / "diff"
+                            / instance
+                            / model["name"]
+                            / str(delta)
+                            / diffusion_name.format(
+                                str(model_size), str(model["length"]), str(trial)
+                            )
                         )
-                    )
-                    if path.exists():
-                        continue
+                        if path.exists():
+                            continue
 
-                    sample_tasks.append(
-                        [
-                            "python3",
-                            "../master_thesis_code/main.py",
-                            "export",
-                            model["modelName"],
-                            "-d",
-                            str(delta),
-                            "-s",
-                            str(model_size),
-                            "-o",
-                            str(path),
-                        ]
-                    )
+                        sample_tasks.append(
+                            [
+                                "python3",
+                                "../master_thesis_code/main.py",
+                                "export",
+                                model["modelName"],
+                                "-d",
+                                str(delta),
+                                "-s",
+                                str(model_size),
+                                "-o",
+                                str(path),
+                                "-i",
+                                f"../example/{instance}.yaml",                   
+                            ]
+                        )
     # breakpoint()
 
     use_cpus = psutil.cpu_count(logical=False) - 1
@@ -323,7 +347,7 @@ def main():
                             path = (
                                 unicycle_path
                                 / "diff"
-                                / model["instance"]
+                                / instance 
                                 / model["name"]
                                 / str(delta_0)
                                 / diffusion_name.format(
@@ -381,38 +405,41 @@ def main():
     # ax_scs = fig_scs.axes
     # ax_dur = fig_dur.axes
     # ax_cost = fig_cost.axes
-    fig, ax = plt.subplots(3, sharex=True, figsize=(16, 9))
-    sns.lineplot(
-        results, x="size", y="success", hue="mp_name", style="delta_0", ax=ax[0]
-    )
     if len(delta_0s) != 1:
         style = "delta_0"
     else:
         style = None
+    fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
+    sns.lineplot(results, x="size", y="success", hue="mp_name", style=style, ax=ax)
+    fig.savefig("../results/plot_success.png")
+    fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
     sns.lineplot(
         results,
         x="size",
         y="duration_dbcbs",
         hue="mp_name",
         style=style,
-        ax=ax[1],
-        legend=False,
+        ax=ax,
+        legend=True,
     )
+    fig.savefig("../results/plot_duration.png")
+    fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
     sns.lineplot(
         results,
         x="size",
         y="cost",
         hue="mp_name",
         style=style,
-        ax=ax[2],
-        legend=False,
+        ax=ax,
+        legend=True,
     )
+    fig.savefig("../results/plot_cost.png")
+    results = pd.DataFrame(results)
+    results.to_csv("../results/test.csv")
 
-    handles, labels = ax[0].get_legend_handles_labels()
-    ax[0].get_legend().remove()
-    fig.legend(handles, labels, loc="lower center", ncol=4)
-
-    fig.savefig("../results/plot.png")
+    # handles, labels = ax[0].get_legend_handles_labels()
+    # ax[0].get_legend().remove()
+    # fig.legend(handles, labels, loc="lower center", ncol=4)
 
     # fig_scs.savefig("../results/success.png")
     # fig_dur.savefig("../results/duration.png")
