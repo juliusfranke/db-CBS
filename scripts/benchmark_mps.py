@@ -192,10 +192,10 @@ def main():
     timelimit = 10
     # test_sizes = [25, 50, 100]
     # test_sizes = [50, 100, 250]
-    test_sizes = [n for n in range(5, 105, 5)]
+    # test_sizes = [n for n in range(5, 105, 5)]
     test_sizes = np.arange(10, 110, 10, dtype=int).tolist()
     # test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
-    # test_sizes= [100]
+    # test_sizes= [50, 100]
     # test_sizes = [n for n in range(50, 60, 5)]
     # delta_0s = [0.3, 0.5, 0.7]
     delta_0s = [0.5]
@@ -210,10 +210,10 @@ def main():
                 "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
                 "name": "Baseline l5 n1000",
             },
-            {
-                "path": unicycle_path / "unicycle1_v0_n10000_l5.yaml",
-                "name": "Baseline l5 n10000",
-            },
+            # {
+            #     "path": unicycle_path / "unicycle1_v0_n10000_l5.yaml",
+            #     "name": "Baseline l5 n10000",
+            # },
             # {
             #     "path": unicycle_path / "unicycle1_v0_n1000_l10.yaml",
             #     "name": "Baseline l10",
@@ -249,13 +249,37 @@ def main():
         #     "name": "Model l5",
         #     "length": 5,
         # },
-        # {
-        #     "instance": "",
-        #     "modelName": "rand_env_l5",
-        #     "path": "../../master_thesis_code/bugtrap_l5_new.pt",
-        #     "name": "Model l5 env",
-        #     "length": 5,
-        # },
+        {
+            "instance": "",
+            "modelName": "rand_env_l5",
+            # "path": "../../master_thesis_code/rand_env_lt.pt",
+            "name": "wo env condition",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "rand_env_area_l5",
+            "name": "area",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "rand_env_area_clust_l5",
+            "name": "area + clustering",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "rand_env_area_conn_l5",
+            "name": "area + connectivity",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "rand_env_area_conn_clust_l5",
+            "name": "area + clustering + connectivity",
+            "length": 5,
+        },
         # {
         #     "modelName": "bugtrap_l10",
         #     "path": "../../master_thesis_code/bugtrap_l10.pt",
@@ -296,7 +320,7 @@ def main():
                                 "-o",
                                 str(path),
                                 "-i",
-                                f"../example/{instance}.yaml",                   
+                                f"../example/{instance}.yaml",
                             ]
                         )
     # breakpoint()
@@ -347,7 +371,7 @@ def main():
                             path = (
                                 unicycle_path
                                 / "diff"
-                                / instance 
+                                / instance
                                 / model["name"]
                                 / str(delta_0)
                                 / diffusion_name.format(

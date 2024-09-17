@@ -176,8 +176,8 @@ def main():
 
     alg = "db-cbs"
     trials = 50
-    timelimit = 2
-    test_size = 100
+    timelimit = 5
+    test_size = 500
     # delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
     delta_0s = [0.5]
 
@@ -185,8 +185,8 @@ def main():
     mps = {
         "Baseline": [
             {
-                "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
-                "name": "Baseline l5",
+                "path": unicycle_path / "unicycle1_v0_n10000_l5.yaml",
+                "name": "Baseline l5 n10000",
             },
         ]
     }
