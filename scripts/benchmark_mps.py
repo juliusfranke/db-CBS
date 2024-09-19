@@ -174,7 +174,7 @@ def main():
         "grid_size": 1,
         "save": True,
     }
-    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(5)]
+    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(10)]
     instances = [
         # "alcove_unicycle_single",
         # "bugtrap_single",
@@ -189,11 +189,11 @@ def main():
 
     alg = "db-cbs"
     trials = 5
-    timelimit = 10
+    timelimit = 2
     # test_sizes = [25, 50, 100]
     # test_sizes = [50, 100, 250]
     # test_sizes = [n for n in range(5, 105, 5)]
-    test_sizes = np.arange(10, 110, 10, dtype=int).tolist()
+    test_sizes = np.arange(70, 110, 10, dtype=int).tolist()
     # test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
     # test_sizes= [50, 100]
     # test_sizes = [n for n in range(50, 60, 5)]
@@ -258,28 +258,34 @@ def main():
         },
         {
             "instance": "",
-            "modelName": "rand_env_area_l5",
-            "name": "area",
+            "modelName": "rand_env_conn_l5",
+            "name": "connectivity",
             "length": 5,
         },
         {
             "instance": "",
-            "modelName": "rand_env_area_clust_l5",
-            "name": "area + clustering",
+            "modelName": "rand_env_clust_l5",
+            "name": "clustering",
             "length": 5,
         },
-        {
-            "instance": "",
-            "modelName": "rand_env_area_conn_l5",
-            "name": "area + connectivity",
-            "length": 5,
-        },
-        {
-            "instance": "",
-            "modelName": "rand_env_area_conn_clust_l5",
-            "name": "area + clustering + connectivity",
-            "length": 5,
-        },
+        # {
+        #     "instance": "",
+        #     "modelName": "rand_env_area_clust_l5",
+        #     "name": "area + clustering",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "rand_env_area_conn_l5",
+        #     "name": "area + connectivity",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "rand_env_area_conn_clust_l5",
+        #     "name": "area + clustering + connectivity",
+        #     "length": 5,
+        # },
         # {
         #     "modelName": "bugtrap_l10",
         #     "path": "../../master_thesis_code/bugtrap_l10.pt",
@@ -323,7 +329,7 @@ def main():
                                 f"../example/{instance}.yaml",
                             ]
                         )
-    # breakpoint()
+    #breakpoint()
 
     use_cpus = psutil.cpu_count(logical=False) - 1
     print("Using {} CPUs".format(use_cpus))
@@ -331,7 +337,7 @@ def main():
     with mp.Pool(use_cpus) as p:
         for _ in tqdm.tqdm(
             p.imap_unordered(
-                # subprocess.run,
+                #subprocess.run,
                 partial(
                     subprocess.run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                 ),
