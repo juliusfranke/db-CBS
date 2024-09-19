@@ -108,9 +108,18 @@ def main():
             continue
         data = []
         problems = list(model.iterdir())
-        for problem in tqdm(problems):
-            problem_name = problem.name
-            data.extend(load_data(model_name, problem_name))
+        pbar = tqdm(problems)
+        error = []
+        for problem in pbar:
+            try:
+                problem_name = problem.name
+                pbar.set_description(problem_name)
+                data.extend(load_data(model_name, problem_name))
+            except:
+                error.append(problem_name)
+        # breakpoint()
+        if error:
+            print(error)
         with open(OUTPUT_PATH / "test.yaml", "w") as file:
             yaml.safe_dump(data, file, default_flow_style=None)
 

@@ -166,7 +166,7 @@ rand_instance_config = {
 
 
 def main():
-    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(100)]
+    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(250)]
     instances = [
         # "alcove_unicycle_single",
         # "bugtrap_single",
@@ -175,9 +175,9 @@ def main():
     ]
 
     alg = "db-cbs"
-    trials = 50
-    timelimit = 5
-    test_size = 500
+    trials = 100
+    timelimit = 1
+    test_size = 100
     # delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
     delta_0s = [0.5]
 
@@ -185,8 +185,8 @@ def main():
     mps = {
         "Baseline": [
             {
-                "path": unicycle_path / "unicycle1_v0_n10000_l5.yaml",
-                "name": "Baseline l5 n10000",
+                "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
+                "name": "Baseline l5 n1000",
             },
         ]
     }
