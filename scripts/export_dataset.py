@@ -107,12 +107,12 @@ def load_solutions(folder: Path, max_workers=None, debug=False):
 
 def main():
     instances_data = load_instances()
-    solutions_data = load_solutions(DATASET_PATH / "Baseline l5 n1000")
+    solutions_data = load_solutions(DATASET_PATH / "Baseline l5 n1000_")
     dataset = solutions_data.merge(instances_data, on="instance").drop(
         columns="instance"
     )
 
-    out = Path("../output/dataset.parquet")
+    out = Path("../output/dataset_test.parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
     dataset.to_parquet(out)
     print(f"Saved as {out}")

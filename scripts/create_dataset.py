@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import Dict
+from concurrent.futures import ProcessPoolExecutor
 
 import matplotlib.pyplot as plt
 import psutil
 import seaborn as sns
-import tqdm
+from tqdm import tqdm
 import pandas as pd
 import yaml
 
@@ -166,7 +167,9 @@ rand_instance_config = {
 
 
 def main():
-    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(250)]
+    random_instances = [
+        createRandomInstance(**rand_instance_config) for _ in range(100)
+    ]
     instances = [
         # "alcove_unicycle_single",
         # "bugtrap_single",
@@ -175,7 +178,7 @@ def main():
     ]
 
     alg = "db-cbs"
-    trials = 100
+    trials = 50
     timelimit = 1
     test_size = 100
     # delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
@@ -186,7 +189,7 @@ def main():
         "Baseline": [
             {
                 "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
-                "name": "Baseline l5 n1000",
+                "name": "Baseline l5 n1000_",
             },
         ]
     }
@@ -217,24 +220,20 @@ def main():
         "duration_dbcbs": [],
         "delta_0": [],
     }
-    parallel = True
-    if parallel and len(tasks) > 1:
-        use_cpus = psutil.cpu_count(logical=False) - 1
-        print("Using {} CPUs".format(use_cpus))
-        with mp.Pool(use_cpus) as p:
-            for result in tqdm.tqdm(
-                p.imap_unordered(execute_task, tasks), total=len(tasks)
-            ):
-                for key, value in result.items():
-                    results[key].append(value)
-    else:
-        for task in tasks:
-            result = execute_task(task)
+    error_list = []
+    with ProcessPoolExecutor() as executor:
+        pbar = tqdm(total=len(tasks))
+        for execution in [executor.submit(execute_task, task) for task in tasks]:
+            exception = execution.exception()
+            if exception:
+                error_list.append(exception)
+                pbar.set_description(f"Error: {len(error_list)}")
+                pbar.update(1)
+                continue
+            result = execution.result()
             for key, value in result.items():
                 results[key].append(value)
-
-            results["mp_name"].append(task.mp_name)
-            results["size"].append(task.size)
+            pbar.update(1)
 
     # results_mean.sort_values("idx")
 
@@ -251,9 +250,16 @@ def main():
         fig, ax = plt.subplots(3, sharex=True, figsize=(16, 9))
         sns.lineplot(results, x="delta_0", y="success", hue="instance", ax=ax[0])
         sns.lineplot(
-            results, x="delta_0", y="duration_dbcbs", hue="instance", ax=ax[1], legend=False
+            results,
+            x="delta_0",
+            y="duration_dbcbs",
+            hue="instance",
+            ax=ax[1],
+            legend=False,
         )
-        sns.lineplot(results, x="delta_0", y="cost", hue="instance", ax=ax[2], legend=False)
+        sns.lineplot(
+            results, x="delta_0", y="cost", hue="instance", ax=ax[2], legend=False
+        )
 
         plt.setp(ax, xticks=delta_0s)
         handles, labels = ax[0].get_legend_handles_labels()
@@ -272,9 +278,9 @@ def main():
     # fig_dur.savefig("../results/duration.png")
     # fig_cost.savefig("../results/cost.png")
     for random_instance in random_instances:
-        dataset_instance = Path("../results") / "dataset" / random_instance.name  
+        dataset_instance = Path("../results") / "dataset" / random_instance.name
         dataset_instance = dataset_instance.with_suffix(".yaml")
-        random_instance.save(dataset_instance, extended = True)
+        random_instance.save(dataset_instance, extended=True)
 
 
 if __name__ == "__main__":

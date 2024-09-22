@@ -15,7 +15,8 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 import multiprocessing as mp
-import tqdm
+from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm
 import psutil
 
 # import checker
@@ -188,12 +189,12 @@ def main():
     # ]
 
     alg = "db-cbs"
-    trials = 5
+    trials = 10
     timelimit = 2
     # test_sizes = [25, 50, 100]
     # test_sizes = [50, 100, 250]
     # test_sizes = [n for n in range(5, 105, 5)]
-    test_sizes = np.arange(70, 110, 10, dtype=int).tolist()
+    test_sizes = np.arange(10, 110, 10, dtype=int).tolist()
     # test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
     # test_sizes= [50, 100]
     # test_sizes = [n for n in range(50, 60, 5)]
@@ -228,130 +229,114 @@ def main():
     }
     # mps["Baseline"] = []
     models = [
-        # {
-        #     "instance": "parallelpark_single",
-        #     "modelName": "parallelpark_l5",
-        #     "path": "../../master_thesis_code/bugtrap_l5.pt",
-        #     "name": "Model l5",
-        #     "length": 5,
-        # },
-        # {
-        #     "instance": "bugtrap_single",
-        #     "modelName": "bugtrap_l5_delta",
-        #     "path": "../../master_thesis_code/bugtrap_l5_delta.pt",
-        #     "name": "Model l5 delta",
-        #     "length": 5,
-        # },
-        # {
-        #     "instance": "bugtrap_single",
-        #     "modelName": "bugtrap_l5",
-        #     "path": "../../master_thesis_code/bugtrap_l5.pt",
-        #     "name": "Model l5",
-        #     "length": 5,
-        # },
         {
             "instance": "",
-            "modelName": "rand_env_l5",
-            # "path": "../../master_thesis_code/rand_env_lt.pt",
+            "modelName": "rand_env_l5_1",
             "name": "wo env condition",
             "length": 5,
         },
         {
             "instance": "",
-            "modelName": "rand_env_conn_l5",
-            "name": "connectivity",
+            "modelName": "rand_env_l5_theta_1",
+            "name": "theta (start, goal)",
+            "length": 5,
+        },
+        # {
+        #     "instance": "",
+        #     "modelName": "rand_env_l5_clust_1",
+        #     "name": "node clustering",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "rand_env_l5_conn_1",
+        #     "name": "node connectivity",
+        #     "length": 5,
+        # },
+        {
+            "instance": "",
+            "modelName": "rand_env_l5_p_1",
+            "name": "percent obstacles",
             "length": 5,
         },
         {
             "instance": "",
-            "modelName": "rand_env_clust_l5",
-            "name": "clustering",
+            "modelName": "rand_env_l5_p_75",
+            "name": "percent obstacles 75k",
             "length": 5,
         },
-        # {
-        #     "instance": "",
-        #     "modelName": "rand_env_area_clust_l5",
-        #     "name": "area + clustering",
-        #     "length": 5,
-        # },
-        # {
-        #     "instance": "",
-        #     "modelName": "rand_env_area_conn_l5",
-        #     "name": "area + connectivity",
-        #     "length": 5,
-        # },
-        # {
-        #     "instance": "",
-        #     "modelName": "rand_env_area_conn_clust_l5",
-        #     "name": "area + clustering + connectivity",
-        #     "length": 5,
-        # },
-        # {
-        #     "modelName": "bugtrap_l10",
-        #     "path": "../../master_thesis_code/bugtrap_l10.pt",
-        #     "name": "Model l10",
-        #     "length": 10,
-        # },
     ]
     # models = []
     sample_tasks = []
     for instance in instances:
-        for trial in range(trials):
-            for model_size in model_sizes:
-                for delta in delta_0s:
-                    for model in models:
-                        path = (
-                            unicycle_path
-                            / "diff"
-                            / instance
-                            / model["name"]
-                            / str(delta)
-                            / diffusion_name.format(
-                                str(model_size), str(model["length"]), str(trial)
-                            )
-                        )
-                        if path.exists():
-                            continue
+        for delta in delta_0s:
+            for model in models:
+                path = (
+                    unicycle_path
+                    / "diff"
+                    / instance
+                    / model["name"]
+                    / str(delta)
+                    / diffusion_name.format("MODEL_SIZE", str(model["length"]), "TRIAL")
+                )
+                if path.exists():
+                    continue
 
-                        sample_tasks.append(
-                            [
-                                "python3",
-                                "../master_thesis_code/main.py",
-                                "export",
-                                model["modelName"],
-                                "-d",
-                                str(delta),
-                                "-s",
-                                str(model_size),
-                                "-o",
-                                str(path),
-                                "-i",
-                                f"../example/{instance}.yaml",
-                            ]
-                        )
-    #breakpoint()
+                sample_tasks.append(
+                    [
+                        "python3",
+                        "../master_thesis_code/main.py",
+                        "export",
+                        model["modelName"],
+                        "-d",
+                        str(delta),
+                        "-r",
+                        str(trials),
+                        "-s",
+                        *[str(model_size) for model_size in model_sizes],
+                        "-o",
+                        str(path),
+                        "-i",
+                        f"../example/{instance}.yaml",
+                    ]
+                )
 
-    use_cpus = psutil.cpu_count(logical=False) - 1
-    print("Using {} CPUs".format(use_cpus))
-    print("Generating datasets")
-    with mp.Pool(use_cpus) as p:
-        for _ in tqdm.tqdm(
+    error_list = []
+    with mp.Pool(7) as p:
+        for _ in tqdm(
             p.imap_unordered(
-                #subprocess.run,
-                partial(
-                    subprocess.run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                ),
+                subprocess.run,
+                # partial(
+                #     subprocess.run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                # ),
                 sample_tasks,
             ),
             total=len(sample_tasks),
         ):
             pass
+        # pbar = tqdm(total=len(sample_tasks))
+        # pbar.set_description(f"Error: {len(error_list)}")
+        # for execution in [
+        #     executor.submit(
+        #         subprocess.run(
+        #             sample_task, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        #         )
+        #     )
+        #     for sample_task in sample_tasks
+        # ]:
+        #     exception = execution.exception()
+        #     if exception:
+        #         error_list.append(exception)
+        #         pbar.set_description(f"Error: {len(error_list)}")
+        #         pbar.update(1)
+        #         continue
+        #     pbar.update(1)
     print("done generating datasets")
     # subprocess.run(
     #     sample_task, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     #     )
 
-    # breakpoint()
+    breakpoint()
     tasks = []
     for instance in instances:
         for trial in range(trials):
@@ -406,24 +391,39 @@ def main():
         "duration_dbcbs": [],
         "delta_0": [],
     }
-    parallel = True
-    if parallel and len(tasks) > 1:
-        use_cpus = psutil.cpu_count(logical=False) - 1
-        print("Using {} CPUs".format(use_cpus))
-        with mp.Pool(use_cpus) as p:
-            for result in tqdm.tqdm(
-                p.imap_unordered(execute_task, tasks), total=len(tasks)
-            ):
-                for key, value in result.items():
-                    results[key].append(value)
-    else:
-        for task in tasks:
-            result = execute_task(task)
+    error_list = []
+    with ProcessPoolExecutor() as executor:
+        pbar = tqdm(total=len(tasks))
+        pbar.set_description(f"Error: {len(error_list)}")
+        for execution in [executor.submit(execute_task, task) for task in tasks]:
+            exception = execution.exception()
+            if exception:
+                error_list.append(exception)
+                pbar.set_description(f"Error: {len(error_list)}")
+                pbar.update(1)
+                continue
+            result = execution.result()
             for key, value in result.items():
                 results[key].append(value)
+            pbar.update(1)
+    # parallel = True
+    # if parallel and len(tasks) > 1:
+    #     use_cpus = psutil.cpu_count(logical=False) - 1
+    #     print("Using {} CPUs".format(use_cpus))
+    #     with mp.Pool(use_cpus) as p:
+    #         for result in tqdm.tqdm(
+    #             p.imap_unordered(execute_task, tasks), total=len(tasks)
+    #         ):
+    #             for key, value in result.items():
+    #                 results[key].append(value)
+    # else:
+    #     for task in tasks:
+    #         result = execute_task(task)
+    #         for key, value in result.items():
+    #             results[key].append(value)
 
-            results["mp_name"].append(task.mp_name)
-            results["size"].append(task.size)
+    #         results["mp_name"].append(task.mp_name)
+    #         results["size"].append(task.size)
 
     # results_mean.sort_values("idx")
 
