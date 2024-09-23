@@ -383,7 +383,7 @@ def createRandomInstance(
     # n_obstacles = np.maximum(int(env.area * obstacle_per_sqm), 1)
     p_obstacles = (np.random.random() * (obstacle_max - obstacle_min)) + obstacle_min
     n_obstacles = int(env.n_gridpoints * p_obstacles)
-    ic(p_obstacles)
+    # ic(p_obstacles)
     while len(env.obstacles) <= n_obstacles:
         while True:
             size = [grid_size, grid_size]

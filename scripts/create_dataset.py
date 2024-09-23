@@ -14,6 +14,7 @@ import seaborn as sns
 from tqdm import tqdm
 import pandas as pd
 import yaml
+import numpy as np
 
 # import checker
 from main_dbcbs_mod import run_dbcbs
@@ -156,10 +157,8 @@ def execute_task(task: ExecutionTask) -> Dict[str, float | str | None]:
 
 
 rand_instance_config = {
-    "env_min": [4, 4],
-    "env_max": [8, 8],
-    "obstacle_min": 0.1,
-    "obstacle_max": 0.5,
+    # "env_min": [8, 8],
+    # "env_max": [16, 16],
     "allow_disconnect": False,
     "grid_size": 1,
     "save": True,
@@ -167,19 +166,70 @@ rand_instance_config = {
 
 
 def main():
-    random_instances = [
-        createRandomInstance(**rand_instance_config) for _ in range(100)
-    ]
+    n_instances = 100
+    random_instances = {}
+
+    # a = createRandomInstance(**rand_instance_config, obstacle_min=o, obstacle_max=o)
+    # fig, ax = plt.subplots(1)
+    # a.plotInstance(ax=ax)
+    # plt.show()
+    #
+    # breakpoint()
+
+    p_0 = 0.2
+    p_1 = 0.7
+    p_d = 0.1
+    # obstacle_mins = [
+    #     np.round((p_1 - p_d - p_0) / (n_instances - 1) * i + p_0, decimals=1)
+    #     for i in range(n_instances)
+    # ]
+    n_o = int(np.round((p_1 - p_0) / p_d)) + 1
+    n_n = int(np.round(n_instances / n_o))
+    obstac = sorted([np.round(i / 10 + p_0, decimals=1) for i in range(n_o)] * n_n)
+    n_instances = n_o * n_n
+    a_0 = 8
+    a_1 = 16
+    sizes = [np.round((a_1 - a_0) / n_n * i + a_0) for i in range(n_n)] * n_o
+
+    # breakpoint()
+    error_list = []
+    with ProcessPoolExecutor() as executor:
+        pbar = tqdm(total=n_instances)
+        for execution in [
+            executor.submit(
+                partial(createRandomInstance, **rand_instance_config),
+                env_min = [a,a],
+                env_max = [a,a],
+                obstacle_min=o,
+                obstacle_max=o + p_d,
+            )
+            for o, a in zip(obstac, sizes)
+        ]:
+            exception = execution.exception()
+            if exception:
+                error_list.append(exception)
+                pbar.set_description(f"Error: {len(error_list)}")
+                pbar.update(1)
+                continue
+            result = execution.result()
+            random_instances[result.name] = result
+            pbar.update(1)
+    pbar.close()
+
+    # for i in range(5):
+    #     random_instance = createRandomInstance(**rand_instance_config, obstacle_min=0, obstacle_max=0.1)
+    #     random_instances[random_instance.name] = random_instance
+
     instances = [
         # "alcove_unicycle_single",
         # "bugtrap_single",
-        *[rand_inst.name for rand_inst in random_instances],
+        *[rand_inst.name for rand_inst in random_instances.values()],
         # "parallelpark_single",
     ]
 
     alg = "db-cbs"
-    trials = 50
-    timelimit = 1
+    trials = 10
+    timelimit = 5
     test_size = 100
     # delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
     delta_0s = [0.5]
@@ -188,8 +238,8 @@ def main():
     mps = {
         "Baseline": [
             {
-                "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
-                "name": "Baseline l5 n1000_",
+                "path": unicycle_path / "unicycle1_v0_n50000_l5.bin",
+                "name": "Baseline l5 n50000",
             },
         ]
     }
@@ -219,6 +269,8 @@ def main():
         "cost": [],
         "duration_dbcbs": [],
         "delta_0": [],
+        "p_obstacles": [],
+        "area": [],
     }
     error_list = []
     with ProcessPoolExecutor() as executor:
@@ -233,6 +285,15 @@ def main():
             result = execution.result()
             for key, value in result.items():
                 results[key].append(value)
+            if result["instance"] in random_instances.keys():
+                results["p_obstacles"].append(
+                    random_instances[result["instance"]].env.info["p_obstacles"]
+                )
+                results["area"].append(
+                    random_instances[result["instance"]].env.info["area"]
+                )
+            else:
+                results["p_obstacles"].append(None)
             pbar.update(1)
 
     # results_mean.sort_values("idx")
@@ -268,19 +329,20 @@ def main():
 
         fig.savefig("../results/creation_delta.png")
     else:
-        fig, ax = plt.subplots(3, figsize=(16, 9))
-        sns.boxplot(results, x="success", ax=ax[0])
-        sns.boxplot(results, x="duration_dbcbs", ax=ax[1])
-        sns.boxplot(results, x="cost", ax=ax[2])
+        fig, ax = plt.subplots(3, figsize=(16, 9), sharex=True)
+        sns.lineplot(results, x="p_obstacles", y="success", hue="area", ax=ax[0])
+        sns.lineplot(results, x="p_obstacles", y="duration_dbcbs", hue="area", ax=ax[1])
+        sns.lineplot(results, x="p_obstacles", y="cost", hue="area", ax=ax[2])
         fig.savefig("../results/creation.png")
 
     # fig_scs.savefig("../results/success.png")
     # fig_dur.savefig("../results/duration.png")
     # fig_cost.savefig("../results/cost.png")
-    for random_instance in random_instances:
+    for random_instance in random_instances.values():
         dataset_instance = Path("../results") / "dataset" / random_instance.name
         dataset_instance = dataset_instance.with_suffix(".yaml")
         random_instance.save(dataset_instance, extended=True)
+    breakpoint()
 
 
 if __name__ == "__main__":
