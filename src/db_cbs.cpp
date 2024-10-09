@@ -34,6 +34,10 @@ namespace fs = std::filesystem;
 #define DYNOBENCH_BASE "../dynoplan/dynobench/"
 
 int main(int argc, char* argv[]) {
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::milliseconds;
     
     namespace po = boost::program_options;
     // Declare the supported options.
@@ -185,6 +189,7 @@ int main(int argc, char* argv[]) {
     }
     col_mng_robots->registerObjects(robot_objs);
     // Heuristic computation
+    auto t1 = high_resolution_clock::now();
     size_t robot_id = 0;
     std::vector<ompl::NearestNeighbors<std::shared_ptr<AStarNode>>*> heuristics(robots.size(), nullptr);
     std::vector<dynobench::Trajectory> expanded_trajs_tmp;
@@ -287,6 +292,9 @@ int main(int argc, char* argv[]) {
             /*bool feasible = execute_optimizationMultiRobot(inputFile,*/
             /*                              outputFile, */
             /*                              optimizationFile,*/
+            auto t2 = high_resolution_clock::now();
+            auto ms_int = duration_cast<milliseconds>(t2 - t1);
+            std::cout << ms_int.count() << std::endl; 
             /*                              DYNOBENCH_BASE,*/
             /*                              sum_robot_cost);*/
             return 0;
@@ -334,6 +342,8 @@ int main(int argc, char* argv[]) {
       } 
 
     } 
-   
+  auto t2 = high_resolution_clock::now();
+  auto ms_int = duration_cast<milliseconds>(t2 - t1);
+  std::cout<< ms_int.count() << std::endl; 
   return 0;
 }

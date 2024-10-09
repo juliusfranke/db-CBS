@@ -170,19 +170,19 @@ def main():
     rand_instance_config = {
         "env_min": [8, 8],
         "env_max": [8, 8],
-        "obstacle_min": 0.8,
-        "obstacle_max": 0.8,
+        "obstacle_min": 0.6,
+        "obstacle_max": 0.6,
         "allow_disconnect": False,
         "grid_size": 1,
         "save": True,
         "dataset": True,
     }
-    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(20)]
+    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(5)]
     random_instances = {name: info for (name, info) in random_instances}
     instances = [
-        # "alcove_unicycle_single",
+        "alcove_unicycle_single",
         # "bugtrap_single",
-        *[rand_inst_name for rand_inst_name in random_instances.keys()],
+        # *[rand_inst_name for rand_inst_name in random_instances.keys()],
         # "parallelpark_single",
     ]
     # instances = [
@@ -199,7 +199,8 @@ def main():
     # test_sizes = [n for n in range(5, 105, 5)]
     # test_sizes = np.arange(10, 110, 10, dtype=int).tolist()
     # test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
-    test_sizes = [50, 100]
+    # test_sizes = [50,100]
+    test_sizes = [75, 100]
     # test_sizes = [n for n in range(50, 60, 5)]
     # delta_0s = [0.3, 0.5, 0.7]
     delta_0s = [0.5]
@@ -239,40 +240,46 @@ def main():
     models = [
         {
             "instance": "",
-            "modelName": "relp_mse",
+            "modelName": "test",
             "name": "wo condition (probability)",
             "length": 5,
         },
-        {
-            "instance": "",
-            "modelName": "l_mse",
-            "name": "wo condition (location)",
-            "length": 5,
-        },
-        {
-            "instance": "",
-            "modelName": "relp_envt_mse",
-            "name": "theta (probability)",
-            "length": 5,
-        },
-        {
-            "instance": "",
-            "modelName": "l_envt_mse",
-            "name": "theta (location)",
-            "length": 5,
-        },
-        {
-            "instance": "",
-            "modelName": "relp_po_mse",
-            "name": "p_obstacle (probability)",
-            "length": 5,
-        },
-        {
-            "instance": "",
-            "modelName": "l_po_mse",
-            "name": "p_obstacle (location)",
-            "length": 5,
-        },
+        # {
+        #     "instance": "",
+        #     "modelName": "relp_mse",
+        #     "name": "wo condition (probability)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "l_mse",
+        #     "name": "wo condition (location)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "relp_envt_mse",
+        #     "name": "theta (probability)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "l_envt_mse",
+        #     "name": "theta (location)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "relp_po_mse",
+        #     "name": "p_obstacle (probability)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "l_po_mse",
+        #     "name": "p_obstacle (location)",
+        #     "length": 5,
+        # },
     ]
     # models = []
     sample_tasks = []
@@ -313,10 +320,10 @@ def main():
     with mp.Pool(7) as p:
         for _ in tqdm(
             p.imap_unordered(
-                subprocess.run,
-                # partial(
-                #     subprocess.run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                # ),
+                # subprocess.run,
+                partial(
+                    subprocess.run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ),
                 sample_tasks,
             ),
             total=len(sample_tasks),
@@ -400,6 +407,8 @@ def main():
         "delta_0": [],
         "instance": [],
     }
+    # result = execute_task(tasks[0])
+    # breakpoint()
     error_list = []
     with ProcessPoolExecutor() as executor:
         pbar = tqdm(total=len(tasks))
@@ -478,7 +487,8 @@ def main():
     instances = pd.DataFrame(
         [info | {"instance": name} for name, info in random_instances.items()]
     )
-    results = results.merge(instances, on="instance")
+    breakpoint()
+    results = results.merge(instances, on="instance", how="left")
     # def categorize_string(s):
     #     if "location" in s:
     #         return "location"

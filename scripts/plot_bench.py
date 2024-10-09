@@ -3,6 +3,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 data = pd.read_parquet("../results/bench.parquet")
+breakpoint()
 # mps = data[data.cat != "Baseline"]
 # baseline_mean = (
 #     data[data.cat == "Baseline"][["size", "success", "cost", "duration_dbcbs"]]
