@@ -162,24 +162,27 @@ def execute_task(task: ExecutionTask) -> Dict[str, str | float | None]:
     # if(len(search_plot_files) > 0):
     #   for file in search_plot_files:
     #       run_search_visualize(search_viz_script, result_folder / file)
+    result["instance"] = task.instance
     return result
 
 
 def main():
     rand_instance_config = {
-        "env_min": [4, 4],
+        "env_min": [8, 8],
         "env_max": [8, 8],
-        "obstacle_min": 0.1,
-        "obstacle_max": 0.5,
+        "obstacle_min": 0.8,
+        "obstacle_max": 0.8,
         "allow_disconnect": False,
         "grid_size": 1,
         "save": True,
+        "dataset": True,
     }
-    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(10)]
+    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(20)]
+    random_instances = {name: info for (name, info) in random_instances}
     instances = [
         # "alcove_unicycle_single",
         # "bugtrap_single",
-        *[rand_inst.name for rand_inst in random_instances],
+        *[rand_inst_name for rand_inst_name in random_instances.keys()],
         # "parallelpark_single",
     ]
     # instances = [
@@ -190,13 +193,13 @@ def main():
 
     alg = "db-cbs"
     trials = 10
-    timelimit = 2
+    timelimit = 5
     # test_sizes = [25, 50, 100]
     # test_sizes = [50, 100, 250]
     # test_sizes = [n for n in range(5, 105, 5)]
-    test_sizes = np.arange(10, 110, 10, dtype=int).tolist()
+    # test_sizes = np.arange(10, 110, 10, dtype=int).tolist()
     # test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
-    # test_sizes= [50, 100]
+    test_sizes = [50, 100]
     # test_sizes = [n for n in range(50, 60, 5)]
     # delta_0s = [0.3, 0.5, 0.7]
     delta_0s = [0.5]
@@ -208,9 +211,14 @@ def main():
     mps = {
         "Baseline": [
             {
-                "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
-                "name": "Baseline l5 n1000",
+                "path": unicycle_path / "unicycle1_v0_n50000_l5.bin",
+                "name": "Baseline l5 n50000",
             },
+            # "Baseline": [
+            #     {
+            #         "path": unicycle_path / "unicycle1_v0_n1000_l5.yaml",
+            #         "name": "Baseline l5 n1000",
+            #     },
             # {
             #     "path": unicycle_path / "unicycle1_v0_n10000_l5.yaml",
             #     "name": "Baseline l5 n10000",
@@ -231,38 +239,38 @@ def main():
     models = [
         {
             "instance": "",
-            "modelName": "rand_env_l5_1",
-            "name": "wo env condition",
+            "modelName": "relp_mse",
+            "name": "wo condition (probability)",
             "length": 5,
         },
         {
             "instance": "",
-            "modelName": "rand_env_l5_theta_1",
-            "name": "theta (start, goal)",
-            "length": 5,
-        },
-        # {
-        #     "instance": "",
-        #     "modelName": "rand_env_l5_clust_1",
-        #     "name": "node clustering",
-        #     "length": 5,
-        # },
-        # {
-        #     "instance": "",
-        #     "modelName": "rand_env_l5_conn_1",
-        #     "name": "node connectivity",
-        #     "length": 5,
-        # },
-        {
-            "instance": "",
-            "modelName": "rand_env_l5_p_1",
-            "name": "percent obstacles",
+            "modelName": "l_mse",
+            "name": "wo condition (location)",
             "length": 5,
         },
         {
             "instance": "",
-            "modelName": "rand_env_l5_p_75",
-            "name": "percent obstacles 75k",
+            "modelName": "relp_envt_mse",
+            "name": "theta (probability)",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "l_envt_mse",
+            "name": "theta (location)",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "relp_po_mse",
+            "name": "p_obstacle (probability)",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "l_po_mse",
+            "name": "p_obstacle (location)",
             "length": 5,
         },
     ]
@@ -336,7 +344,7 @@ def main():
     #     sample_task, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     #     )
 
-    breakpoint()
+    # breakpoint()
     tasks = []
     for instance in instances:
         for trial in range(trials):
@@ -390,6 +398,7 @@ def main():
         "cost": [],
         "duration_dbcbs": [],
         "delta_0": [],
+        "instance": [],
     }
     error_list = []
     with ProcessPoolExecutor() as executor:
@@ -435,37 +444,57 @@ def main():
     # ax_scs = fig_scs.axes
     # ax_dur = fig_dur.axes
     # ax_cost = fig_cost.axes
-    if len(delta_0s) != 1:
-        style = "delta_0"
-    else:
-        style = None
-    fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
-    sns.lineplot(results, x="size", y="success", hue="mp_name", style=style, ax=ax)
-    fig.savefig("../results/plot_success.png")
-    fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
-    sns.lineplot(
-        results,
-        x="size",
-        y="duration_dbcbs",
-        hue="mp_name",
-        style=style,
-        ax=ax,
-        legend=True,
-    )
-    fig.savefig("../results/plot_duration.png")
-    fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
-    sns.lineplot(
-        results,
-        x="size",
-        y="cost",
-        hue="mp_name",
-        style=style,
-        ax=ax,
-        legend=True,
-    )
-    fig.savefig("../results/plot_cost.png")
+    # if len(delta_0s) != 1:
+    #     style = "delta_0"
+    # else:
+    #     style = None
+    # fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
+    # sns.lineplot(results, x="size", y="success", hue="mp_name", style=style, ax=ax)
+    # fig.savefig("../results/plot_success.png")
+    # fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
+    # sns.lineplot(
+    #     results,
+    #     x="size",
+    #     y="duration_dbcbs",
+    #     hue="mp_name",
+    #     style=style,
+    #     ax=ax,
+    #     legend=True,
+    # )
+    # fig.savefig("../results/plot_duration.png")
+    # fig, ax = plt.subplots(1, sharex=True, figsize=(16, 9))
+    # sns.lineplot(
+    #     results,
+    #     x="size",
+    #     y="cost",
+    #     hue="mp_name",
+    #     style=style,
+    #     ax=ax,
+    #     legend=True,
+    # )
+    # fig.savefig("../results/plot_cost.png")
     results = pd.DataFrame(results)
-    results.to_csv("../results/test.csv")
+
+    instances = pd.DataFrame(
+        [info | {"instance": name} for name, info in random_instances.items()]
+    )
+    results = results.merge(instances, on="instance")
+    # def categorize_string(s):
+    #     if "location" in s:
+    #         return "location"
+    #     elif "probability" in s:
+    #         return "probability"
+    #     else:
+    #         return "Baseline"
+
+    # def remove_cat(s):
+    #     s = s.replace(" (probability)", "").replace(" (location)", "")
+    #     return s
+
+    # results["cat"] = results["mp_name"].apply(categorize_string)
+    # results["mp_name"] = results["mp_name"].apply(remove_cat)
+
+    results.to_parquet("../results/bench.parquet")
 
     # handles, labels = ax[0].get_legend_handles_labels()
     # ax[0].get_legend().remove()

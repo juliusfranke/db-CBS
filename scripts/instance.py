@@ -373,7 +373,8 @@ def createRandomInstance(
     allow_disconnect: bool = False,
     grid_size: float = 0.5,
     save=False,
-) -> Instance:
+    dataset=False,
+):
     assert all(np.mod(np.array(env_min), grid_size) == 0)
     assert all(np.mod(np.array(env_max), grid_size) == 0)
     max_x = np.random.choice(np.arange(env_min[0], env_max[0] + grid_size, grid_size))
@@ -404,7 +405,12 @@ def createRandomInstance(
     # if save:
     #     with open(f"../example/{instance.name}.yaml", "w") as file:
     #         yaml.safe_dump(instance.yaml, file, default_flow_style=None)
-    return instance
+    if dataset:
+        path = Path(f"../results/dataset/") / instance.name
+        path = path.with_suffix(".yaml")
+        instance.save(path, extended=True)
+        return instance.name, instance.env.info
+    return instance.name, instance.env.info
 
 
 def main():

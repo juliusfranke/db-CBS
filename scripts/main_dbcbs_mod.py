@@ -45,10 +45,13 @@ def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | str | N
             ]
             # print(subprocess.list2cmdline(cmd))
             try:
-                with open("{}/log.txt".format(folder), "w") as logfile:
-                    result = subprocess.run(
-                        cmd, timeout=timelimit, stdout=logfile, stderr=logfile
-                    )
+                # with open("{}/log.txt".format(folder), "w") as logfile:
+                result = subprocess.run(
+                    cmd,
+                    timeout=timelimit,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
                 t_dbcbs_stop = time.time()
                 duration_dbcbs += t_dbcbs_stop - t_dbcbs_start
                 if result.returncode != 0:

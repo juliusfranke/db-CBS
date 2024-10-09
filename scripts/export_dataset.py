@@ -6,6 +6,7 @@ from typing import Dict, List
 import yaml
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
+import tempfile
 
 
 DATASET_PATH = Path("../results/dataset/")
@@ -20,7 +21,7 @@ def try_func(func: callable, *args):
         raise Exception(f"Error with {args}")
 
 
-def _load_instance(instance_data_path: Path) -> List[Dict[str, int | float]]:
+def _load_instance(instance_data_path: Path):
     instance_data = {}
     with open(instance_data_path, "r") as file:
         instance_dict = yaml.safe_load(file)
@@ -41,14 +42,16 @@ def _load_solution(solution_data_path: Path):
     instance = str(solution_data_path.parents[3].name)
     with open(solution_data_path, "r") as file:
         solution_dict = yaml.safe_load(file)
-    for mp in solution_dict["motion_primitives"]:
+    total_mp = len(solution_dict["motion_primitives"]) - 1
+    for i, mp in enumerate(solution_dict["motion_primitives"]):
         mp_data = {}
-        for i, action in enumerate(np.array(mp["actions"]).flatten()):
-            mp_data[f"actions_{i}"] = float(action)
+        for j, action in enumerate(np.array(mp["actions"]).flatten()):
+            mp_data[f"actions_{j}"] = float(action)
         mp_data[f"theta_0"] = float(mp["start"][2])
         mp_data["cost"] = solution_dict["cost"]
         mp_data["delta_0"] = delta_0
         mp_data["instance"] = instance
+        mp_data["location"] = i / total_mp
         solution_data.append(mp_data)
     return solution_data
 
@@ -76,43 +79,88 @@ def load_instances(max_workers=None):
     return pd.DataFrame(instances_data)
 
 
-def load_solutions(folder: Path, max_workers=None, debug=False):
-    if debug:
-        solutions_data_paths = list(folder.glob("**/result_dbcbs.yaml"))[:100]
-    else:
-        solutions_data_paths = list(folder.glob("**/result_dbcbs.yaml"))
-
+def load_solutions_partial(
+    paths: List, pbar: tqdm, error_list: List, temp_file, max_workers=None
+):
     solutions_data = []
-    error_list = []
-    print("Loading solution data")
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         load_solution = partial(try_func, _load_solution)
-        pbar = tqdm(
-            [executor.submit(load_solution, path) for path in solutions_data_paths]
-        )
-        pbar.set_description("Error: 0")
-        for execution in pbar:
+        executions = [executor.submit(load_solution, path) for path in paths]
+        for execution in executions:
             exception = execution.exception()
+            pbar.update()
             if exception:
                 error_list.append(exception)
                 pbar.set_description(f"Error: {len(error_list)}")
                 continue
             result = execution.result()
             solutions_data.extend(result)
+    # solutions_df = pd.DataFrame(solutions_data).value_counts().reset_index()
+    solutions_df = pd.DataFrame(solutions_data)
+    solutions_df.to_parquet(temp_file)
 
+
+def load_solutions(folder: Path, max_workers=None, debug=False):
+    solutions_data_paths = list(folder.glob("**/result_dbcbs.yaml"))
+
+    tempdir = tempfile.gettempdir()
+    temp_files = []
+    error_list = []
+    print("Loading solution data")
+    pbar = tqdm(total=len(solutions_data_paths))
+    pbar.set_description("Error: 0")
+    max_simult = 1000
+    for i in range(int(np.ceil(len(solutions_data_paths) / max_simult))):
+        temp_file = f"{tempdir}/{i}.parquet"
+        temp_files.append(temp_file)
+        paths = solutions_data_paths[i * max_simult : (i + 1) * max_simult]
+        load_solutions_partial(paths, pbar, error_list, temp_file)
+        if i == 2 and debug:
+            break
+
+    pbar.close()
     [print(error) for error in error_list]
-    solutions_df = pd.DataFrame(solutions_data).value_counts().reset_index()
+    solutions_df = pd.concat([pd.read_parquet(file) for file in temp_files])
+    # for temp_file in temp_files:
+    #     Path(temp_file).unlink()
+    # solutions_df = pd.DataFrame(solutions_data).value_counts().reset_index()
+    # solutions_df = solutions_df.value_counts().reset_index()
     return solutions_df
 
 
 def main():
+    # instances_data = load_instances()
+    # solutions_data = _load_solution(
+    #     DATASET_PATH
+    #     / "test"
+    #     / "000aa150-d957-430a-8bc4-978ad90633b2"
+    #     / "0.2"
+    #     / "100"
+    #     / "000"
+    #     / "result_dbcbs.yaml"
+    # )
+    # solutions_data = pd.DataFrame(solutions_data)
+    # dataset = solutions_data.merge(instances_data, on="instance").drop(
+    #     columns="instance"
+    # )
+    # breakpoint()
+    solutions_data = pd.read_parquet("../results/dataset/data.parquet")
+    insts = list(solutions_data["instance"].unique())
     instances_data = load_instances()
-    solutions_data = load_solutions(DATASET_PATH / "Baseline l5 n1000_")
-    dataset = solutions_data.merge(instances_data, on="instance").drop(
-        columns="instance"
+    instances_data = instances_data[instances_data["instance"].isin(insts)]
+    dataset = solutions_data.merge(instances_data, on="instance")
+
+    # solutions_data = load_solutions(DATASET_PATH / "Baseline l5 n50000", debug=False)
+    breakpoint()
+
+    dataset = (
+        solutions_data.merge(instances_data, on="instance")
+        .drop(columns="instance")
+        .value_counts()
+        .reset_index()
     )
 
-    out = Path("../output/dataset_test.parquet")
+    out = Path("../output/rand_env_40k.parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
     dataset.to_parquet(out)
     print(f"Saved as {out}")

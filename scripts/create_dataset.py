@@ -15,6 +15,7 @@ from tqdm import tqdm
 import pandas as pd
 import yaml
 import numpy as np
+from memory_profiler import profile
 
 # import checker
 from main_dbcbs_mod import run_dbcbs
@@ -162,11 +163,13 @@ rand_instance_config = {
     "allow_disconnect": False,
     "grid_size": 1,
     "save": True,
+    "dataset": True,
 }
 
 
+# @profile
 def main():
-    n_instances = 100
+    # n_instances = 100
     random_instances = {}
 
     # a = createRandomInstance(**rand_instance_config, obstacle_min=o, obstacle_max=o)
@@ -175,44 +178,49 @@ def main():
     # plt.show()
     #
     # breakpoint()
+    n_repeat = 100
+    obstacles = np.arange(0.4, 0.8, 0.05)
+    # sizes = np.arange(10, 13, 1)
+    sizes = [6, 7, 8, 9, 10]
+    # sizes = [10]
+    obstacles, sizes_x, sizes_y = np.meshgrid(obstacles, sizes, sizes)
+    obstacles = np.repeat(obstacles, n_repeat)
+    sizes_x = np.repeat(sizes_x, n_repeat)
+    sizes_y = np.repeat(sizes_y, n_repeat)
 
-    p_0 = 0.2
-    p_1 = 0.7
-    p_d = 0.1
-    # obstacle_mins = [
-    #     np.round((p_1 - p_d - p_0) / (n_instances - 1) * i + p_0, decimals=1)
-    #     for i in range(n_instances)
-    # ]
-    n_o = int(np.round((p_1 - p_0) / p_d)) + 1
-    n_n = int(np.round(n_instances / n_o))
-    obstac = sorted([np.round(i / 10 + p_0, decimals=1) for i in range(n_o)] * n_n)
-    n_instances = n_o * n_n
-    a_0 = 8
-    a_1 = 16
-    sizes = [np.round((a_1 - a_0) / n_n * i + a_0) for i in range(n_n)] * n_o
-
-    # breakpoint()
-    error_list = []
+    print(len(obstacles))
+    breakpoint()
+    # for o, x, y in tqdm(zip(obstacles, sizes_x, sizes_y), total=len(obstacles)):
+    #     inst = createRandomInstance(
+    #         **rand_instance_config,
+    #         env_min=[x, y],
+    #         env_max=[x, y],
+    #         obstacle_min=o,
+    #         obstacle_max=o,
+    #     )
+    #     random_instances[inst.name] = inst
+    # return None
+    # error_list = []
     with ProcessPoolExecutor() as executor:
-        pbar = tqdm(total=n_instances)
+        pbar = tqdm(total=len(obstacles))
         for execution in [
             executor.submit(
                 partial(createRandomInstance, **rand_instance_config),
-                env_min = [a,a],
-                env_max = [a,a],
+                env_min=[x, y],
+                env_max=[x, y],
                 obstacle_min=o,
-                obstacle_max=o + p_d,
+                obstacle_max=o,
             )
-            for o, a in zip(obstac, sizes)
+            for o, x, y in zip(obstacles, sizes_x, sizes_y)
         ]:
-            exception = execution.exception()
-            if exception:
-                error_list.append(exception)
-                pbar.set_description(f"Error: {len(error_list)}")
-                pbar.update(1)
-                continue
-            result = execution.result()
-            random_instances[result.name] = result
+            # exception = execution.exception()
+            # if exception:
+            #     error_list.append(exception)
+            #     pbar.set_description(f"Error: {len(error_list)}")
+            #     pbar.update(1)
+            #     continue
+            name, info = execution.result()
+            random_instances[name] = info
             pbar.update(1)
     pbar.close()
 
@@ -223,13 +231,13 @@ def main():
     instances = [
         # "alcove_unicycle_single",
         # "bugtrap_single",
-        *[rand_inst.name for rand_inst in random_instances.values()],
+        *[rand_inst for rand_inst in random_instances.keys()],
         # "parallelpark_single",
     ]
 
     alg = "db-cbs"
-    trials = 10
-    timelimit = 5
+    trials = 20
+    timelimit = 3
     test_size = 100
     # delta_0s = [0.3, 0.4, 0.5, 0.6, 0.7]
     delta_0s = [0.5]
@@ -261,43 +269,63 @@ def main():
                         )
                     )
 
-    results = {
-        "instance": [],
-        "mp_name": [],
-        "size": [],
-        "success": [],
-        "cost": [],
-        "duration_dbcbs": [],
-        "delta_0": [],
-        "p_obstacles": [],
-        "area": [],
-    }
+    # results = {
+    #     "instance": [],
+    #     "mp_name": [],
+    #     "size": [],
+    #     "success": [],
+    #     "cost": [],
+    #     "duration_dbcbs": [],
+    #     "delta_0": [],
+    #     "p_obstacles": [],
+    #     "area": [],
+    # }
+    # breakpoint()
+    results = {}
     error_list = []
     with ProcessPoolExecutor() as executor:
         pbar = tqdm(total=len(tasks))
+        pbar.set_description("(Success/Failure): 0/0")
+        success = 0
+        failure = 0
         for execution in [executor.submit(execute_task, task) for task in tasks]:
             exception = execution.exception()
             if exception:
                 error_list.append(exception)
-                pbar.set_description(f"Error: {len(error_list)}")
+                # pbar.set_description(f"Error: {len(error_list)}")
                 pbar.update(1)
                 continue
             result = execution.result()
-            for key, value in result.items():
-                results[key].append(value)
-            if result["instance"] in random_instances.keys():
-                results["p_obstacles"].append(
-                    random_instances[result["instance"]].env.info["p_obstacles"]
-                )
-                results["area"].append(
-                    random_instances[result["instance"]].env.info["area"]
-                )
+            # pbar.write(result["success"])
+            if result["success"]:
+                success += 1
+                pbar.set_description(f"(Success/Failure): {success}/{failure}")
             else:
-                results["p_obstacles"].append(None)
+                failure += 1
+
+            results[result["instance"]] = result
+            # for key, value in result.items():
+            #     results[key].append(value)
+            # if result["instance"] in random_instances.keys():
+            #     results["p_obstacles"].append(
+            #         random_instances[result["instance"]].env.info["p_obstacles"]
+            #     )
+            #     results["area"].append(
+            #         random_instances[result["instance"]].env.info["area"]
+            #     )
+            # else:
+            #     results["p_obstacles"].append(None)
             pbar.update(1)
+    pbar.close()
 
-    # results_mean.sort_values("idx")
-
+    results = pd.DataFrame(results).transpose()
+    # instances = pd.DataFrame(
+    #     [r.env.info | {"instance": name} for name, r in random_instances.items()]
+    # )
+    instances = pd.DataFrame(
+        [info | {"instance": name} for name, info in random_instances.items()]
+    )
+    results = results.merge(instances, on="instance")
     # order = ["Baseline", *[diff["name"] for diff in mps["Diffusion"].values()]]
     # sns.boxplot(results, x="size", y="success", hue="mp_name", hue_order=order, medianprops={"color": "r", "linewidth":3})
     # fig_scs = plt.figure(figsize=(16,9))
@@ -338,11 +366,12 @@ def main():
     # fig_scs.savefig("../results/success.png")
     # fig_dur.savefig("../results/duration.png")
     # fig_cost.savefig("../results/cost.png")
-    for random_instance in random_instances.values():
-        dataset_instance = Path("../results") / "dataset" / random_instance.name
-        dataset_instance = dataset_instance.with_suffix(".yaml")
-        random_instance.save(dataset_instance, extended=True)
-    breakpoint()
+    print("plotting done")
+    # for random_instance in random_instances.values():
+    #     dataset_instance = Path("../results") / "dataset" / random_instance.name
+    #     dataset_instance = dataset_instance.with_suffix(".yaml")
+    #     random_instance.save(dataset_instance, extended=True)
+    print("complete")
 
 
 if __name__ == "__main__":
