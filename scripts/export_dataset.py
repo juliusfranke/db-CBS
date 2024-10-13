@@ -12,7 +12,7 @@ import tempfile
 DATASET_PATH = Path("../results/dataset/")
 
 
-def try_func(func: callable, *args):
+def try_func(func, *args):
     try:
         return func(*args)
     except:

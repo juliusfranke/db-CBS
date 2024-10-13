@@ -338,30 +338,44 @@ def getInstance(instance_name, path=None) -> Instance:
     with open(instance_path, "r") as file:
         content = yaml.safe_load(file)
 
-    env_min = content["environment"]["min"]
-    env_max = content["environment"]["max"]
-    if "grid_size" in content["environment"].keys():
-        grid_size = content["environment"]["grid_size"]
-    else:
-        grid_size = 1
-    env = Environment(min=env_min, max=env_max, grid_size=grid_size)
+    # env_min = content["environment"]["min"]
+    # env_max = content["environment"]["max"]
+    # if "grid_size" in content["environment"].keys():
+    #     grid_size = content["environment"]["grid_size"]
+    # else:
+    #     grid_size = 1
+    # env = Environment(min=env_min, max=env_max, grid_size=grid_size)
 
-    for obstacle in content["environment"]["obstacles"]:
-        obstacle_type = obstacle["type"]
-        center = obstacle["center"]
-        size = obstacle["size"]
-        obstacle = Obstacle(obstacle_type=obstacle_type, center=center, size=size)
-        env.add_obstacle(obstacle)
-    env.finalize()
-    problem = content["robots"][0]
-    instance = Instance(
-        env=env,
-        name=instance_name,
-        robot_type=problem["type"],
-        start=np.array(problem["start"]),
-        goal=np.array(problem["goal"]),
-    )
-    return instance
+    # for obstacle in content["environment"]["obstacles"]:
+    #     obstacle_type = obstacle["type"]
+    #     center = obstacle["center"]
+    #     size = obstacle["size"]
+    #     obstacle = Obstacle(obstacle_type=obstacle_type, center=center, size=size)
+    #     env.add_obstacle(obstacle)
+    # env.finalize()
+    # problem = content["robots"][0]
+    # instance = Instance(
+    #     env=env,
+    #     name=instance_name,
+    #     robot_type=problem["type"],
+    #     start=np.array(problem["start"]),
+    #     goal=np.array(problem["goal"]),
+    # )
+    return content
+
+
+def loadAllInstances():
+    instances_path = Path("../example")
+    instances = {}
+    for instance_path in instances_path.glob(
+        "????????-????-4???-[89ab]???-????????????.yaml"
+    ):
+        with open(instance_path, "r") as file:
+            content = yaml.safe_load(file)
+        instance_name = instance_path.stem
+        instances[instance_name] = content
+
+    return instances
 
 
 def createRandomInstance(
@@ -413,25 +427,25 @@ def createRandomInstance(
     return instance.name, instance.env.info
 
 
-def main():
-    instance = createRandomInstance(
-        env_min=[6, 6],
-        env_max=[6, 6],
-        obstacle_min=0.1,
-        obstacle_max=0.3,
-        allow_disconnect=False,
-        grid_size=1,
-        save=True,
-    )
-    # instance =getInstance("bugtrap_single")
+# def main():
+#     instance = createRandomInstance(
+#         env_min=[6, 6],
+#         env_max=[6, 6],
+#         obstacle_min=0.1,
+#         obstacle_max=0.3,
+#         allow_disconnect=False,
+#         grid_size=1,
+#         save=True,
+#     )
+#     # instance =getInstance("bugtrap_single")
 
-    fig, ax = plt.subplots(1, 1)
-    instance.plotInstance(ax=ax)
-    # ic(instance.env.info)
+#     fig, ax = plt.subplots(1, 1)
+#     instance.plotInstance(ax=ax)
+#     # ic(instance.env.info)
 
-    plt.show()
-    # instance.env.plot_free(ax=ax[1])
+#     plt.show()
+#     # instance.env.plot_free(ax=ax[1])
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

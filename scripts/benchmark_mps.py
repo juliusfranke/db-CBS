@@ -23,7 +23,7 @@ import psutil
 from benchmark_stats import run_benchmark_stats
 from benchmark_table import write_table
 import paper_tables
-from instance import createRandomInstance
+from instance import createRandomInstance, loadAllInstances
 
 
 @dataclass
@@ -170,21 +170,28 @@ def main():
     rand_instance_config = {
         "env_min": [8, 8],
         "env_max": [8, 8],
-        "obstacle_min": 0.6,
-        "obstacle_max": 0.6,
+        "obstacle_min": 0.8,
+        "obstacle_max": 0.8,
         "allow_disconnect": False,
         "grid_size": 1,
         "save": True,
         "dataset": True,
     }
-    random_instances = [createRandomInstance(**rand_instance_config) for _ in range(5)]
-    random_instances = {name: info for (name, info) in random_instances}
+    old_random_instances = loadAllInstances()
+    new_random_instances = [
+        createRandomInstance(**rand_instance_config) for _ in range(0)
+    ]
+    random_instances = {
+        name: info for (name, info) in new_random_instances
+    } | old_random_instances
     instances = [
-        "alcove_unicycle_single",
+        # "alcove_unicycle_single",
         # "bugtrap_single",
-        # *[rand_inst_name for rand_inst_name in random_instances.keys()],
+        *[rand_inst_name for rand_inst_name in random_instances.keys()],
         # "parallelpark_single",
     ]
+    # breakpoint()
+
     # instances = [
     #     # "alcove_unicycle_single",
     #     "bugtrap_single",
@@ -192,7 +199,7 @@ def main():
     # ]
 
     alg = "db-cbs"
-    trials = 10
+    trials = 50
     timelimit = 5
     # test_sizes = [25, 50, 100]
     # test_sizes = [50, 100, 250]
@@ -200,7 +207,7 @@ def main():
     # test_sizes = np.arange(10, 110, 10, dtype=int).tolist()
     # test_sizes = [1,2,3,4] + [n for n in range(5, 105, 5)]
     # test_sizes = [50,100]
-    test_sizes = [75, 100]
+    test_sizes = [50, 75, 100]
     # test_sizes = [n for n in range(50, 60, 5)]
     # delta_0s = [0.3, 0.5, 0.7]
     delta_0s = [0.5]
@@ -213,7 +220,7 @@ def main():
         "Baseline": [
             {
                 "path": unicycle_path / "unicycle1_v0_n50000_l5.bin",
-                "name": "Baseline l5 n50000",
+                "name": "Baseline",
             },
             # "Baseline": [
             #     {
@@ -236,14 +243,14 @@ def main():
         # }
         # for n in model_sizes
     }
-    # mps["Baseline"] = []
+    mps["Baseline"] = []
     models = [
-        {
-            "instance": "",
-            "modelName": "test",
-            "name": "wo condition (probability)",
-            "length": 5,
-        },
+        # {
+        #     "instance": "",
+        #     "modelName": "test",
+        #     "name": "wo condition (probability)",
+        #     "length": 5,
+        # },
         # {
         #     "instance": "",
         #     "modelName": "relp_mse",
@@ -254,6 +261,12 @@ def main():
         #     "instance": "",
         #     "modelName": "l_mse",
         #     "name": "wo condition (location)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "l_rot2x2_mse",
+        #     "name": "wo condition (location, svd)",
         #     "length": 5,
         # },
         # {
@@ -274,10 +287,46 @@ def main():
         #     "name": "p_obstacle (probability)",
         #     "length": 5,
         # },
+        {
+            "instance": "",
+            "modelName": "l_po_r2_mse",
+            "name": "p_obstacle (location, mse)",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "l_po_r2_mae",
+            "name": "p_obstacle (location, mae)",
+            "length": 5,
+        },
+        {
+            "instance": "",
+            "modelName": "l_po_r2_sh",
+            "name": "p_obstacle (location, sh)",
+            "length": 5,
+        },
         # {
         #     "instance": "",
-        #     "modelName": "l_po_mse",
-        #     "name": "p_obstacle (location)",
+        #     "modelName": "l_po_rot2x2_mse",
+        #     "name": "p_obstacle (location, svd out)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "l_po_rot2x2_in_mse",
+        #     "name": "p_obstacle (location, svd)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "l_po_mse_rot",
+        #     "name": "p_obstacle (location, rot)",
+        #     "length": 5,
+        # },
+        # {
+        #     "instance": "",
+        #     "modelName": "l_envt_po_mse",
+        #     "name": "theta + p_obstacle (location)",
         #     "length": 5,
         # },
     ]
@@ -294,7 +343,11 @@ def main():
                     / str(delta)
                     / diffusion_name.format("MODEL_SIZE", str(model["length"]), "TRIAL")
                 )
-                if path.exists():
+                if len(
+                    list(
+                        path.parent.glob(f"model_unicycle_n*_l{model['length']}_*.yaml")
+                    )
+                ) >= trials * len(model_sizes):
                     continue
 
                 sample_tasks.append(
@@ -317,13 +370,14 @@ def main():
                 )
 
     error_list = []
+    breakpoint()
     with mp.Pool(7) as p:
         for _ in tqdm(
             p.imap_unordered(
-                # subprocess.run,
-                partial(
-                    subprocess.run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                ),
+                subprocess.run,
+                # partial(
+                #     subprocess.run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                # ),
                 sample_tasks,
             ),
             total=len(sample_tasks),
@@ -424,6 +478,7 @@ def main():
             for key, value in result.items():
                 results[key].append(value)
             pbar.update(1)
+    pbar.close()
     # parallel = True
     # if parallel and len(tasks) > 1:
     #     use_cpus = psutil.cpu_count(logical=False) - 1

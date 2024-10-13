@@ -41,7 +41,7 @@ def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | str | N
                 "--cfg",
                 str(filename_cfg),
                 "-t",
-                str(1e6)
+                str(1e6),
             ]
             # print(subprocess.list2cmdline(cmd))
             try:
@@ -50,17 +50,19 @@ def run_dbcbs(filename_env, folder, timelimit, cfg) -> Dict[str, float | str | N
                     cmd,
                     timeout=timelimit,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
                 )
                 # t_dbcbs_stop = time.time()
                 # duration_dbcbs += t_dbcbs_stop - t_dbcbs_start
-                duration_dbcbs = int(result.stdout.splitlines()[-1].decode("utf-8"))
                 # breakpoint()
                 if result.returncode != 0:
                     pass
                     # print("db-cbs failed ", result.returncode)
                 else:
                     # shutil.copyfile(filename_result_dbcbs_opt, "{}/result_dbcbs_opt.yaml".format(folder))
+                    duration_dbcbs = float(
+                        result.stdout.splitlines()[-1].decode("utf-8")
+                    )
                     # cost = 0
                     with open(filename_result_dbcbs) as f:
                         result = yaml.safe_load(f)
