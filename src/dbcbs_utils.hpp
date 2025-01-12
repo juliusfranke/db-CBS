@@ -312,6 +312,25 @@ void export_solutions(const std::vector<LowLevelPlan<dynobench::Trajectory>>& so
     for (auto& n : solution)
       cost += n.trajectory.cost;
     *out << "cost: " << cost << std::endl; 
+    *out << "motion_primitves:" << std::endl;
+    for (size_t i = 0; i < solution.size(); ++i){
+        for (size_t j = 0; j < solution[i].trajectory.primitive_actions.size(); ++j){
+            std::vector<Eigen::VectorXd> tmp_prim_state = solution[i].trajectory.primitive_states.at(j);
+            std::vector<Eigen::VectorXd> tmp_prim_action = solution[i].trajectory.primitive_actions.at(j);
+            *out << "  - start: " <<tmp_prim_state.front().format(dynobench::FMT) << std::endl;
+            *out << "    goal: " <<tmp_prim_state.back().format(dynobench::FMT) << std::endl;
+            *out << "    states:" << std::endl;
+            for (size_t k = 0; k < tmp_prim_state.size(); ++k){
+                *out << "      - ";
+                *out << tmp_prim_state.at(k).format(dynobench::FMT)<< std::endl;
+            }
+            *out << "    actions:" << std::endl;
+            for (size_t k = 0; k < tmp_prim_action.size(); ++k){
+                *out << "      - ";
+                *out << tmp_prim_action.at(k).format(dynobench::FMT)<< std::endl;
+            }
+       }
+    }
     *out << "result:" << std::endl;
     for (size_t i = 0; i < solution.size(); ++i){ 
       std::vector<Eigen::VectorXd> tmp_states = solution[i].trajectory.states;

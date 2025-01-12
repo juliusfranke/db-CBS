@@ -643,6 +643,14 @@ int main(int argc, char* argv[]) {
               newNode.cost += newNode.solution[tmp_robot_id].trajectory.cost;
               newNode.LB += newNode.solution[tmp_robot_id].trajectory.fmin;
               newNode.focalHeuristic = highLevelfocalHeuristicState(newNode.solution, robots, problem.robotTypes, col_mng_robots, robot_objs, residual_force); 
+
+              std::string baseName;
+              baseName = outputFile.substr(0, outputFile.size() - 5); // Remove ".yaml"
+              std::string outputFile_n = baseName + "_" + std::to_string(options_tdbastar.delta) + ".yaml";
+              create_dir_if_necessary(outputFile_n);
+              std::ofstream out_db_n(outputFile_n);
+              export_solutions(newNode.solution, &out_db_n);
+              std::cout << "Export solution to :   " << outputFile_n << std::endl;
               std::cout << "New node solution cost:  " << newNode.solution[tmp_robot_id].trajectory.cost << std::endl;
               std::cout << "New node cost: " << newNode.cost << " New node LB: " << newNode.LB << std::endl;
               std::cout << "New node focal heuristic: " << newNode.focalHeuristic << std::endl;
