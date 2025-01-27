@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 project(db-CBS)
 
@@ -274,4 +275,75 @@ target_link_libraries(main_multirobot_cbs_optimization PRIVATE
   ${YAML_LIBRARIES}
   ompl
   ${FCL_LIBRARIES}
+)
+
+# Perform a release build by default
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif ()
+
+# Create CMake targets for Python components needed by nanobind
+find_package(Python 3 COMPONENTS Interpreter Development.Module REQUIRED)
+
+# Determine the nanobind CMake include path and register it
+execute_process(
+        COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
+        OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE NB_DIR)
+
+message(STATUS "NanoBind Cmake directory: " ${NB_DIR})
+list(APPEND CMAKE_PREFIX_PATH "${NB_DIR}")
+
+# Import nanobind through CMake's find_package mechanism
+find_package(nanobind CONFIG REQUIRED)
+
+# We are now ready to compile the actual extension module
+nanobind_add_module(
+        dbcbs_py
+        src/db_cbs_bindings.cpp
+)
+add_library(_db_cbs_lib
+  src/db_cbs.cpp
+)
+
+set_property(TARGET dbcbs_py PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET _db_cbs_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET optimization PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET tdbastar PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+target_include_directories(_db_cbs_lib PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/dynoplan/include
+)
+
+target_link_libraries(_db_cbs_lib PRIVATE 
+  idbastar::optimization
+  idbastar::tdbastar
+  motion_planning_common
+  ${Boost_LIBRARIES}
+  ${YAML_LIBRARIES}
+  ompl
+  ${FCL_LIBRARIES}
+)
+target_include_directories(dbcbs_py PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/dynoplan/include
+)
+target_link_libraries(dbcbs_py PRIVATE 
+  idbastar::optimization
+  idbastar::tdbastar
+  motion_planning_common
+  ${Boost_LIBRARIES}
+  ${YAML_LIBRARIES}
+  ompl
+  ${FCL_LIBRARIES}
+)
+
+target_link_libraries(dbcbs_py PRIVATE 
+  _db_cbs_lib
+)
+nanobind_add_stub(
+  dbcbs_py_stubs
+  MODULE dbcbs_py
+  OUTPUT dbcbs_py.pyi
+  PYTHON_PATH $<TARGET_FILE_DIR:dbcbs_py>
+  DEPENDS dbcbs_py
 )
