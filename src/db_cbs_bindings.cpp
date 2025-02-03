@@ -1,14 +1,13 @@
 #include "db_cbs.hpp"
 #include "dynobench/motions.hpp"
 #include "dynobench/multirobot_trajectory.hpp"
-#include <iostream>
 #include <nanobind/eigen/dense.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/map.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/tuple.h>
 #include <nanobind/stl/vector.h>
 #include <yaml-cpp/yaml.h>
-
 namespace nb = nanobind;
 
 YAML::Node pythonToYaml(const nb::handle &obj) {
@@ -34,7 +33,6 @@ YAML::Node pythonToYaml(const nb::handle &obj) {
     node = nb::cast<std::string>(obj);
   } else if (nb::isinstance<nb::int_>(obj)) {
     node = nb::cast<int>(obj);
-    std::cout << node << std::endl;
   } else if (nb::isinstance<nb::float_>(obj)) {
     node = nb::cast<double>(obj);
   } else if (obj.is_none()) {
@@ -46,11 +44,6 @@ YAML::Node pythonToYaml(const nb::handle &obj) {
   return node;
 }
 
-/* int py_dbcbs(std::string inputFile, std::string outputFile, std::string
- * optimizationFile, nb::dict cfgDict, double timeLimit){ */
-/*     YAML::Node cfg = YAML::LoadFile(cfgDict); */
-/*     return db_cbs() */
-/* } */
 void processYamlNode(const YAML::Node &node, const std::string &arg1,
                      const std::string &arg2, const std::string &arg3,
                      double arg4) {
@@ -65,16 +58,26 @@ NB_MODULE(dbcbs_py, m) {
   m.def(
       "db_cbs",
       [](nb::dict inputEnv, std::string outputFile,
-         std::string optimizationFile, nb::dict inputCfg, double timeLimit) {
+         std::string optimizationFile, nb::dict inputCfg,
+         double timeLimitdbAstar, double timeLimitdbCBS) {
+        std::cout.setstate(std::ios::failbit);
+
         YAML::Node env = pythonToYaml(inputEnv);
         YAML::Node cfg = pythonToYaml(inputCfg);
-        /* YAML::Node cfg = YAML::Load(&input); */
-        /* processYamlNode(cfg, inputFile, outputFile, optimizationFile, */
-        /*                 timeLimit); */
-        return db_cbs(env, outputFile, optimizationFile, cfg, timeLimit);
+
+        Result result = db_cbs(env, outputFile, optimizationFile, cfg,
+                               timeLimitdbAstar, timeLimitdbCBS);
+
+        std::cout.clear();
+        return result;
       },
-      nb::arg("input_file"), nb::arg("output_file"),
-      nb::arg("optimization_file"), nb::arg("cfg"), nb::arg("time_limit"));
+      nb::call_guard<nb::gil_scoped_release>(), nb::arg("input_file"),
+      nb::arg("output_file"), nb::arg("optimization_file"), nb::arg("cfg"),
+      nb::arg("time_limit_db_astar"), nb::arg("time_limit_db_cbs"));
+  nb::class_<Result>(m, "Result")
+      .def_ro("discrete", &Result::discrete)
+      .def_ro("optimized", &Result::optimized)
+      .def_ro("runtime", &Result::runtime);
   nb::class_<dynobench::Trajectory>(m, "Trajectory")
       .def_ro("time_stamp", &dynobench::Trajectory::time_stamp)
       .def_ro("cost", &dynobench::Trajectory::cost)

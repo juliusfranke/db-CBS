@@ -1,5 +1,6 @@
 #include <Eigen/Dense>
 #include <algorithm>
+#include <any>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -8,6 +9,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <vector>
 #include <yaml-cpp/yaml.h>
 // BOOST
@@ -30,23 +32,22 @@
 #include "robots.h"
 #include <fcl/fcl.h>
 // #include "planresult.hpp"
-#include "dbcbs_utils.hpp"
 #include "db_cbs.hpp"
+#include "dbcbs_utils.hpp"
 
 using namespace dynoplan;
 namespace fs = std::filesystem;
 
 #define DYNOBENCH_BASE "../dynoplan/dynobench/"
 
-MultiRobotTrajectory db_cbs(YAML::Node &env,
-                                    std::string outputFile,
-                                    std::string optimizationFile,
-                                    YAML::Node &cfg, double timeLimit) {
+Result db_cbs(YAML::Node &env, std::string outputFile,
+              std::string optimizationFile, YAML::Node &cfg, double timeLimit,
+              double timeLimitdbCBS) {
+  std::chrono::time_point<std::chrono::system_clock> timeStart =
+      std::chrono::system_clock::now();
   // cfg = cfg["db-cbs"]["default"];
   std::vector<Eigen::VectorXd> solutions;
-  std::cout << "1" << std::endl;
   float alpha = cfg["alpha"].as<float>();
-  std::cout << "2" << std::endl;
   bool filter_duplicates = cfg["filter_duplicates"].as<bool>();
   fs::path output_path(outputFile);
   // tdbstar options
@@ -93,6 +94,9 @@ MultiRobotTrajectory db_cbs(YAML::Node &env,
       obstacles.push_back(co);
     } else {
       throw std::runtime_error("Unknown obstacle type!");
+      MultiRobotTrajectory noSol{};
+      Result result{noSol, noSol, 0};
+      return result;
     }
   }
   const auto &env_min = env["environment"]["min"];
@@ -173,6 +177,8 @@ MultiRobotTrajectory db_cbs(YAML::Node &env,
   }
   col_mng_robots->registerObjects(robot_objs);
   // Heuristic computation
+  std::chrono::time_point<std::chrono::system_clock> timeStartMain =
+      std::chrono::system_clock::now();
   size_t robot_id = 0;
   std::vector<ompl::NearestNeighbors<std::shared_ptr<AStarNode>> *> heuristics(
       robots.size(), nullptr);
@@ -206,6 +212,16 @@ MultiRobotTrajectory db_cbs(YAML::Node &env,
   problem.goals = problem_original.goals;
   options_tdbastar.delta = cfg["delta_0"].as<float>();
   for (size_t iteration = 0;; ++iteration) {
+    MultiRobotTrajectory discreteSol{};
+    std::chrono::time_point<std::chrono::system_clock> timeNow =
+        std::chrono::system_clock::now();
+    double milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              timeNow - timeStartMain)
+                              .count();
+    if (milliseconds > timeLimitdbCBS) {
+      Result result{discreteSol, MultiRobotTrajectory{}, milliseconds};
+      return result;
+    }
     if (iteration > 0) {
       if (solved_db) {
         options_tdbastar.delta *= cfg["delta_0"].as<float>();
@@ -274,6 +290,11 @@ MultiRobotTrajectory db_cbs(YAML::Node &env,
         create_dir_if_necessary(outputFile);
         std::ofstream out(outputFile);
         export_solutions(P.solution, &out);
+        discreteSol.trajectories.clear();
+        for (auto traj : P.solution) {
+          discreteSol.trajectories.push_back(traj.trajectory);
+        }
+
         // get motion_primitives_plot
         if (save_expanded_trajs) {
           std::string output_folder = output_path.parent_path().string();
@@ -288,15 +309,24 @@ MultiRobotTrajectory db_cbs(YAML::Node &env,
         /* std::optional<solutionMap> optSol = solutionMap{}; */
         MultiRobotTrajectory optSol;
         bool feasible = execute_optimizationMultiRobot(
-            env, outputFile, optimizationFile, DYNOBENCH_BASE,
-            sum_robot_cost, &optSol);
+            env, outputFile, optimizationFile, DYNOBENCH_BASE, sum_robot_cost,
+            &optSol);
         // debug
         // std::string output_folder = output_path.parent_path().string();
         // std::ofstream out2(output_folder + "/expanded_nodes.yaml");
         std::ofstream fout(optimizationFile, std::ios::app);
         fout << "  nodes: " << id << std::endl;
         if (feasible) {
-          return optSol;
+
+          std::chrono::time_point<std::chrono::system_clock> timeNow =
+              std::chrono::system_clock::now();
+          double milliseconds =
+              std::chrono::duration_cast<std::chrono::milliseconds>(timeNow -
+                                                                    timeStartMain)
+                  .count();
+          Result result{discreteSol, optSol, milliseconds};
+          return result;
+          /* return std::tuple(discreteSol, optSol); */
           /* return solutions; */
         }
         break;
@@ -344,8 +374,9 @@ MultiRobotTrajectory db_cbs(YAML::Node &env,
       }
     }
   }
-  MultiRobotTrajectory noSol;
-  return noSol;
+  Result result{MultiRobotTrajectory{}, MultiRobotTrajectory{}, 0};
+  return result;
+  /* return std::tuple(MultiRobotTrajectory{}, MultiRobotTrajectory{}); */
 }
 
 int main(int argc, char *argv[]) {
@@ -387,7 +418,7 @@ int main(int argc, char *argv[]) {
   }
   YAML::Node cfg = YAML::LoadFile(cfgFile);
   YAML::Node env = YAML::LoadFile(inputFile);
-  db_cbs(env, outputFile, optimizationFile, cfg, timeLimit);
+  db_cbs(env, outputFile, optimizationFile, cfg, timeLimit, 1000000);
 
   return 0;
 }
