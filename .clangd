@@ -1,0 +1,11 @@
+CompileFlags:
+  CompilationDatabase: buildRelease/   
+  # Add:
+  #   - "-I../dynoplan/include"
+  #   - "-I../dynoplan/include/dynoplan"
+  #   - -I../dynoplan/include/dynoplan/optimization
+  #   - -I../dynoplan/include/dynoplan/tdbastar
+  #   # - -I../dynoplan/src/
+  #   - -I/home/julius/Documents/master_thesis/db-CBS/dynoplan/include
+  #   - -I/home/julius/Documents/master_thesis/db-CBS/dynoplan/include/optimization
+  #   - -I/home/julius/Documents/master_thesis/db-CBS/dynoplan/include/tdbastar

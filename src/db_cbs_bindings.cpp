@@ -97,7 +97,9 @@ NB_MODULE(dbcbs_py, m) {
       .def_ro("start", &dynobench::Trajectory::start)
       .def_ro("goal", &dynobench::Trajectory::goal)
       .def_ro("actions", &dynobench::Trajectory::actions)
-      .def_ro("states", &dynobench::Trajectory::states);
+      .def_ro("states", &dynobench::Trajectory::states)
+      .def_ro("primitive_actions", &dynobench::Trajectory::primitive_actions)
+      .def_ro("primitive_states", &dynobench::Trajectory::primitive_states);
 
   nb::class_<MultiRobotTrajectory>(m, "MultiRobotTrajectory")
       .def_ro("trajectories", &MultiRobotTrajectory::trajectories);
