@@ -40,13 +40,14 @@ namespace fs = std::filesystem;
 
 #define DYNOBENCH_BASE "../dynoplan/dynobench/"
 
-Result db_cbs(YAML::Node &env, std::string outputFile,
-              std::string optimizationFile, YAML::Node &cfg, double timeLimit,
-              double timeLimitdbCBS) {
+std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
+                           std::string optimizationFile, YAML::Node &cfg,
+                           double timeLimit, double timeLimitdbCBS) {
   std::chrono::time_point<std::chrono::system_clock> timeStart =
       std::chrono::system_clock::now();
+  std::vector<Result> solutions;
   // cfg = cfg["db-cbs"]["default"];
-  std::vector<Eigen::VectorXd> solutions;
+  // std::vector<Eigen::VectorXd> solutions;
   float alpha = cfg["alpha"].as<float>();
   bool filter_duplicates = cfg["filter_duplicates"].as<bool>();
   fs::path output_path(outputFile);
@@ -94,9 +95,9 @@ Result db_cbs(YAML::Node &env, std::string outputFile,
       obstacles.push_back(co);
     } else {
       throw std::runtime_error("Unknown obstacle type!");
-      MultiRobotTrajectory noSol{};
-      Result result{noSol, noSol, 0};
-      return result;
+      // MultiRobotTrajectory noSol{};
+      // Result result{noSol, noSol, 0};
+      return solutions;
     }
   }
   const auto &env_min = env["environment"]["min"];
@@ -219,8 +220,8 @@ Result db_cbs(YAML::Node &env, std::string outputFile,
                               timeNow - timeStartMain)
                               .count();
     if (milliseconds > timeLimitdbCBS) {
-      Result result{discreteSol, MultiRobotTrajectory{}, milliseconds};
-      return result;
+      // Result result{discreteSol, MultiRobotTrajectory{}, milliseconds};
+      return solutions;
     }
     if (iteration > 0) {
       if (solved_db) {
@@ -321,11 +322,14 @@ Result db_cbs(YAML::Node &env, std::string outputFile,
           std::chrono::time_point<std::chrono::system_clock> timeNow =
               std::chrono::system_clock::now();
           double milliseconds =
-              std::chrono::duration_cast<std::chrono::milliseconds>(timeNow -
-                                                                    timeStartMain)
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+                  timeNow - timeStartMain)
                   .count();
-          Result result{discreteSol, optSol, milliseconds};
-          return result;
+          extract_motion_primitives(problem, optSol, robot_motions, robots,
+                                    /*length*/ 1);
+          Result result{discreteSol, optSol, milliseconds,
+                        options_tdbastar.delta};
+          solutions.push_back(result);
           /* return std::tuple(discreteSol, optSol); */
           /* return solutions; */
         }
@@ -374,8 +378,8 @@ Result db_cbs(YAML::Node &env, std::string outputFile,
       }
     }
   }
-  Result result{MultiRobotTrajectory{}, MultiRobotTrajectory{}, 0};
-  return result;
+  // Result result{MultiRobotTrajectory{}, MultiRobotTrajectory{}, 0};
+  return solutions;
   /* return std::tuple(MultiRobotTrajectory{}, MultiRobotTrajectory{}); */
 }
 
