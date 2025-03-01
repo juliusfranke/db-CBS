@@ -30,6 +30,7 @@
 #include "fclStateValidityChecker.hpp"
 #include "robotStatePropagator.hpp"
 #include "robots.h"
+#include "dynoplan/ompl/robots.h"
 #include <fcl/fcl.h>
 // #include "planresult.hpp"
 #include "db_cbs.hpp"
@@ -141,7 +142,8 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
     }
     all_motionsFile.push_back(motionsFile);
   }
-  std::map<std::string, std::vector<Motion>> robot_motions;
+  std::map<std::string, std::vector<Motion>> robot_motions; // all motions
+  std::map<std::string, std::vector<Motion>> sub_motions; // used for the search
   // allocate data for conflict checking, check for conflicts
   std::vector<fcl::CollisionObjectd *> robot_objs;
   std::shared_ptr<fcl::BroadPhaseCollisionManagerd> col_mng_robots;
@@ -161,8 +163,11 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
       options_tdbastar.motionsFile = all_motionsFile[i];
       load_motion_primitives_new(
           options_tdbastar.motionsFile, *robot,
-          robot_motions[problem.robotTypes[i]], options_tdbastar.max_motions,
+          robot_motions[problem.robotTypes[i]], 1e6,
           options_tdbastar.cut_actions, true, options_tdbastar.check_cols);
+
+      // get the needed submotions for the search part
+      motion_to_motion(robot_motions[problem.robotTypes[i]], sub_motions[problem.robotTypes[i]], *robot, options_tdbastar.max_motions);
     }
     if (robot->name == "car_with_trailers") {
       col_geom_id++;
@@ -197,7 +202,7 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
       LowLevelPlan<dynobench::Trajectory> tmp_solution;
       expanded_trajs_tmp.clear();
       options_tdbastar.motions_ptr =
-          &robot_motions[problem.robotTypes[robot_id]];
+          &sub_motions[problem.robotTypes[robot_id]];
       tdbastar(problem, options_tdbastar, tmp_solution.trajectory,
                /*constraints*/ {}, out_tdb, robot_id, /*reverse_search*/ true,
                expanded_trajs_tmp, nullptr, &heuristics[robot_id]);
@@ -224,17 +229,24 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
       return solutions;
     }
     if (iteration > 0) {
-      if (solved_db) {
+      if (solved_db) 
         options_tdbastar.delta *= cfg["delta_0"].as<float>();
-      } else {
-        options_tdbastar.delta *= 0.99;
-      }
+
       options_tdbastar.max_motions *= cfg["num_primitives_rate"].as<float>();
       options_tdbastar.max_motions =
           std::min<size_t>(options_tdbastar.max_motions, 1e6);
+
+      for (auto& iter : robot_motions){
+        for (size_t i = 0; i < problem.robotTypes.size(); ++i){
+          if (iter.first == problem.robotTypes[i]){
+            motion_to_motion(robot_motions[problem.robotTypes[i]], sub_motions[problem.robotTypes[i]], *robots[i], options_tdbastar.max_motions);
+            break;
+          }
+        }
+      }
     }
     // disable/enable motions
-    for (auto &iter : robot_motions) {
+    for (auto &iter : sub_motions) {
       for (size_t i = 0; i < problem.robotTypes.size(); ++i) {
         if (iter.first == problem.robotTypes[i]) {
           disable_motions(robots[i], problem.robotTypes[i],
@@ -254,8 +266,8 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
     robot_id = 0;
     for (const auto &robot : robots) {
       expanded_trajs_tmp.clear();
-      options_tdbastar.motions_ptr =
-          &robot_motions[problem.robotTypes[robot_id]];
+      options_tdbastar.motions_ptr = &sub_motions[problem.robotTypes[robot_id]]; 
+          // &robot_motions[problem.robotTypes[robot_id]];
       tdbastar(problem, options_tdbastar, start.solution[robot_id].trajectory,
                start.constraints[robot_id], out_tdb, robot_id,
                /*reverse_search*/ false, expanded_trajs_tmp,
@@ -325,7 +337,7 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
               std::chrono::duration_cast<std::chrono::milliseconds>(
                   timeNow - timeStartMain)
                   .count();
-          extract_motion_primitives(problem, optSol, robot_motions, robots,
+          extract_motion_primitives(problem, optSol, sub_motions, robots,
                                     /*length*/ 1);
           Result result{discreteSol, optSol, milliseconds,
                         options_tdbastar.delta};
