@@ -10,6 +10,8 @@ find_package(PkgConfig)
 pkg_check_modules(YAML REQUIRED yaml-cpp)
 find_package(fcl REQUIRED)
 find_package(octomap REQUIRED)
+message(STATUS "FCL_INCLUDE_DIRS: ${FCL_INCLUDE_DIRS}")
+message(STATUS "FCL_LIBRARIES: ${FCL_LIBRARIES}")
 
 
 
