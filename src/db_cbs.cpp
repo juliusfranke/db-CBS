@@ -26,11 +26,11 @@
 #include "dynobench/general_utils.hpp"
 #include "dynobench/robot_models_base.hpp"
 
+#include "dynoplan/ompl/robots.h"
 #include "fcl/broadphase/broadphase_collision_manager.h"
 #include "fclStateValidityChecker.hpp"
 #include "robotStatePropagator.hpp"
 #include "robots.h"
-#include "dynoplan/ompl/robots.h"
 #include <fcl/fcl.h>
 // #include "planresult.hpp"
 #include "db_cbs.hpp"
@@ -161,13 +161,15 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
     robot_objs.push_back(robot_obj);
     if (robot_motions.find(problem.robotTypes[i]) == robot_motions.end()) {
       options_tdbastar.motionsFile = all_motionsFile[i];
-      load_motion_primitives_new(
-          options_tdbastar.motionsFile, *robot,
-          robot_motions[problem.robotTypes[i]], 1e6,
-          options_tdbastar.cut_actions, true, options_tdbastar.check_cols);
+      load_motion_primitives_new(options_tdbastar.motionsFile, *robot,
+                                 robot_motions[problem.robotTypes[i]], 1e6,
+                                 options_tdbastar.cut_actions, true,
+                                 options_tdbastar.check_cols);
 
       // get the needed submotions for the search part
-      motion_to_motion(robot_motions[problem.robotTypes[i]], sub_motions[problem.robotTypes[i]], *robot, options_tdbastar.max_motions);
+      motion_to_motion(robot_motions[problem.robotTypes[i]],
+                       sub_motions[problem.robotTypes[i]], *robot,
+                       options_tdbastar.max_motions);
     }
     if (robot->name == "car_with_trailers") {
       col_geom_id++;
@@ -201,8 +203,7 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
       problem.goals[robot_id] = tmp_state;
       LowLevelPlan<dynobench::Trajectory> tmp_solution;
       expanded_trajs_tmp.clear();
-      options_tdbastar.motions_ptr =
-          &sub_motions[problem.robotTypes[robot_id]];
+      options_tdbastar.motions_ptr = &sub_motions[problem.robotTypes[robot_id]];
       tdbastar(problem, options_tdbastar, tmp_solution.trajectory,
                /*constraints*/ {}, out_tdb, robot_id, /*reverse_search*/ true,
                expanded_trajs_tmp, nullptr, &heuristics[robot_id]);
@@ -229,17 +230,19 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
       return solutions;
     }
     if (iteration > 0) {
-      if (solved_db) 
+      if (solved_db)
         options_tdbastar.delta *= cfg["delta_0"].as<float>();
 
       options_tdbastar.max_motions *= cfg["num_primitives_rate"].as<float>();
       options_tdbastar.max_motions =
           std::min<size_t>(options_tdbastar.max_motions, 1e6);
 
-      for (auto& iter : robot_motions){
-        for (size_t i = 0; i < problem.robotTypes.size(); ++i){
-          if (iter.first == problem.robotTypes[i]){
-            motion_to_motion(robot_motions[problem.robotTypes[i]], sub_motions[problem.robotTypes[i]], *robots[i], options_tdbastar.max_motions);
+      for (auto &iter : robot_motions) {
+        for (size_t i = 0; i < problem.robotTypes.size(); ++i) {
+          if (iter.first == problem.robotTypes[i]) {
+            motion_to_motion(robot_motions[problem.robotTypes[i]],
+                             sub_motions[problem.robotTypes[i]], *robots[i],
+                             options_tdbastar.max_motions);
             break;
           }
         }
@@ -266,8 +269,8 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
     robot_id = 0;
     for (const auto &robot : robots) {
       expanded_trajs_tmp.clear();
-      options_tdbastar.motions_ptr = &sub_motions[problem.robotTypes[robot_id]]; 
-          // &robot_motions[problem.robotTypes[robot_id]];
+      options_tdbastar.motions_ptr = &sub_motions[problem.robotTypes[robot_id]];
+      // &robot_motions[problem.robotTypes[robot_id]];
       tdbastar(problem, options_tdbastar, start.solution[robot_id].trajectory,
                start.constraints[robot_id], out_tdb, robot_id,
                /*reverse_search*/ false, expanded_trajs_tmp,
