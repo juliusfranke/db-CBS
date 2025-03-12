@@ -11,5 +11,5 @@
 	path = dynoplan
 	url = git@github.com:juliusfranke/dynoplan.git
 [submodule "master_thesis_code"]
-	path = master_thesis_code
+	path = diffusion-motion-planning
     url = git@github.com:juliusfranke/diffusion-motion-planning.git
