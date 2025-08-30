@@ -1,4 +1,5 @@
 #include "db_cbs.hpp"
+#include "db_ecbs_lib.hpp"
 #include "dynobench/motions.hpp"
 #include "dynobench/multirobot_trajectory.hpp"
 #include "dynobench/robot_models.hpp"
@@ -77,6 +78,30 @@ NB_MODULE(dbcbs_py, m) {
         std::vector<Result> result =
             db_cbs(env, outputFile, optimizationFile, cfg, timeLimitdbAstar,
                    timeLimitdbCBS);
+
+        std::cout.clear();
+        // return nb::cast(std::move(result), nb::rv_policy::move);
+        return result;
+      },
+      nb::rv_policy::move, nb::call_guard<nb::gil_scoped_release>(),
+      nb::arg("input_file"), nb::arg("output_file"),
+      nb::arg("optimization_file"), nb::arg("cfg"),
+      nb::arg("time_limit_db_astar"), nb::arg("time_limit_db_cbs"));
+
+  m.def(
+      "db_ecbs",
+      [](nb::dict inputEnv, std::string outputFile,
+         std::string optimizationFile, nb::dict inputCfg,
+         double timeLimitdbAstar, double timeLimitdbCBS) {
+        std::cout.setstate(std::ios::failbit);
+
+        YAML::Node env = pythonToYaml(inputEnv);
+        YAML::Node cfg = pythonToYaml(inputCfg);
+
+        std::vector<Result> result =
+            db_ecbs(env, outputFile, optimizationFile, cfg, timeLimitdbAstar,
+                   timeLimitdbCBS);
+        // std::vector<Result> result;
 
         std::cout.clear();
         // return nb::cast(std::move(result), nb::rv_policy::move);

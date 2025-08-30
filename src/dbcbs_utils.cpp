@@ -1,4 +1,3 @@
-#pragma once
 #include <algorithm>
 #include <bits/stdc++.h>
 #include <chrono>
@@ -16,6 +15,7 @@
 #include "robots.h"
 #include <fcl/fcl.h>
 // #include "planresult.hpp"
+#include "dbcbs_utils.hpp"
 #include "dynobench/motions.hpp"
 #include "dynoplan/tdbastar/planresult.hpp"
 #include "dynoplan/tdbastar/tdbastar.hpp"
@@ -25,147 +25,8 @@
 // nn
 #include "dynobench/nn.h"
 // Conflicts
-struct Conflict {
-  double time;
-  size_t robot_idx_i;
-  Eigen::VectorXd robot_state_i;
-  size_t robot_idx_j;
-  Eigen::VectorXd robot_state_j;
-};
-// Constraints
-struct HighLevelNode {
-  std::vector<LowLevelPlan<dynobench::Trajectory>> solution;
-  std::vector<std::vector<dynoplan::Constraint>> constraints;
-  double cost;
-  double LB;
-  int focalHeuristic;
-  int id;
 
-  typename boost::heap::d_ary_heap<
-      HighLevelNode, boost::heap::arity<2>,
-      boost::heap::mutable_<true>>::handle_type // openset_handle_type
-      handle;
-
-  bool operator<(const HighLevelNode &n) const { return cost > n.cost; }
-};
-
-struct HighLevelNodeFocal {
-  std::vector<LowLevelPlan<dynobench::Trajectory>> solution;
-  std::vector<std::vector<dynoplan::Constraint>> constraints;
-  std::vector<
-      std::vector<std::pair<std::shared_ptr<dynoplan::AStarNode>, size_t>>>
-      result;
-  // std::vector<std::map<size_t, dynoplan::Motion*>> result_motions;
-  double cost;
-  double LB;
-  int focalHeuristic;
-  int id;
-
-  typename boost::heap::d_ary_heap<
-      HighLevelNodeFocal, boost::heap::arity<2>,
-      boost::heap::mutable_<true>>::handle_type // openset_handle_type
-      handle;
-
-  bool operator<(const HighLevelNodeFocal &n) const { return cost > n.cost; }
-};
-
-// fefine your binary heap type
-typedef boost::heap::d_ary_heap<HighLevelNodeFocal, boost::heap::arity<2>,
-                                boost::heap::mutable_<true>>
-    openset_t;
-// access its handle_type
-typedef openset_t::handle_type openset_handle_type;
-// create binary heap of handle_type (nested type) of openset_t binary heap
-// typedef boost::heap::d_ary_heap<openset_handle_type, boost::heap::arity<2>,
-// boost::heap::mutable_<true>> focalset_t;
-struct compareFocalHeuristic {
-  bool operator()(const openset_handle_type &h1,
-                  const openset_handle_type &h2) const {
-    if ((*h1).focalHeuristic != (*h2).focalHeuristic) {
-      return (*h1).focalHeuristic > (*h2).focalHeuristic;
-    }
-    return (*h1).cost > (*h2).cost;
-  }
-};
-
-typedef boost::heap::d_ary_heap<openset_handle_type, boost::heap::arity<2>,
-                                boost::heap::compare<compareFocalHeuristic>,
-                                boost::heap::mutable_<true>>
-    focalset_t;
-
-// for cbs-style optimization
-struct HighLevelNodeOptimization {
-  // std::vector<dynobench::Trajectory> trajectories;
-  MultiRobotTrajectory multirobot_trajectory;
-  std::unordered_set<size_t> cluster; // robot idx for the joint optimization
-  std::vector<std::pair<std::unordered_set<size_t>, int>>
-      clusters; // used only with greedy cbs (cluster, its conflict)
-  std::vector<std::vector<int>> conflict_matrix;
-  // std::vector<std::vector<float>> residual_forces; // for each robot in the
-  // final solution
-  double cost;
-  int conflict;
-  int id;
-
-  HighLevelNodeOptimization(int rows, int cols)
-      : conflict_matrix(rows, std::vector<int>(cols, 0)),
-        // residual_forces(rows, std::vector<float>(rows, 0.0)),
-        cost(0.0), conflict(0), id(0) {}
-  // check if the robot belongs to any cluster, return index of the clusters
-  // vector index
-  int containsX(size_t X) const {
-    int index = 0;
-    for (const auto &pair : clusters) {
-      if (pair.first.find(X) != pair.first.end()) {
-        return index;
-      }
-      ++index;
-    }
-    return -1;
-  }
-
-  int getIndexOfSet(std::unordered_set<size_t> &target_set) {
-    auto it = std::find_if(
-        clusters.begin(), clusters.end(),
-        [&](const std::pair<std::unordered_set<size_t>, int> &pair) {
-          return pair.first == target_set; // Compare unordered_sets
-        });
-
-    if (it != clusters.end()) {
-      return std::distance(clusters.begin(), it); // Get the index
-    }
-    return -1;
-  }
-  // return the indices (row, column) of 2D matrix the max element
-  std::tuple<int, int, int> getMaxElement() {
-    int max_value = std::numeric_limits<int>::min();
-    int max_vector_index = -1;
-    int max_element_index = -1;
-
-    for (size_t i = 0; i < conflict_matrix.size(); ++i) {
-      auto max_it = std::max_element(conflict_matrix[i].begin(),
-                                     conflict_matrix[i].end());
-      if (max_it != conflict_matrix[i].end()) {
-        int current_max_value = *max_it;
-        if (current_max_value > max_value) {
-          max_value = current_max_value;
-          max_vector_index = i;
-          max_element_index = std::distance(conflict_matrix[i].begin(), max_it);
-        }
-      }
-    }
-    return {max_vector_index, max_element_index, max_value};
-  }
-  typename boost::heap::d_ary_heap<
-      HighLevelNodeOptimization, boost::heap::arity<2>,
-      boost::heap::mutable_<true>>::handle_type handle;
-
-  bool operator<(const HighLevelNodeOptimization &n) const {
-    return conflict < n.conflict; // max
-  }
-};
-
-inline bool getEarliestConflict(
+bool getEarliestConflict(
     const std::vector<LowLevelPlan<dynobench::Trajectory>> &solution,
     const std::vector<std::shared_ptr<dynobench::Model_robot>> &all_robots,
     std::shared_ptr<fcl::BroadPhaseCollisionManagerd> col_mng_robots,
@@ -241,7 +102,7 @@ inline bool getEarliestConflict(
 // for heterogeneous case with the residual force
 // no prioritization, only create constraints
 // doesn't work with car_trailer, assumes robots are in consec.order
-inline bool getEarliestViolations(
+bool getEarliestViolations(
     const std::vector<LowLevelPlan<dynobench::Trajectory>> &solution,
     std::vector<std::string> &robot_types,
     std::map<size_t, std::vector<dynoplan::Constraint>> &constraints) {
@@ -308,7 +169,7 @@ inline bool getEarliestViolations(
   } // time loop
   return false;
 }
-inline void createConstraintsFromConflicts(
+void createConstraintsFromConflicts(
     const Conflict &early_conflict,
     std::map<size_t, std::vector<dynoplan::Constraint>> &constraints) {
   constraints[early_conflict.robot_idx_i].push_back(
@@ -318,9 +179,9 @@ inline void createConstraintsFromConflicts(
 }
 // assumes if residual force, then add 0 to all robots, only homogeneous robots
 // for now
-inline void export_solutions(
+void export_solutions(
     const std::vector<LowLevelPlan<dynobench::Trajectory>> &solution,
-    std::ofstream *out, bool residual_forse = false) {
+    std::ofstream *out, bool residual_forse) {
   float cost = 0;
   std::string indent = "  ";
   for (auto &n : solution)
@@ -372,7 +233,7 @@ inline void export_solutions(
   }
 }
 
-inline void export_intermediate_solutions(
+void export_intermediate_solutions(
     const std::vector<LowLevelPlan<dynobench::Trajectory>> &solution,
     std::vector<std::vector<dynoplan::Constraint>> constraints,
     const Conflict &early_conflict, std::ofstream *out) {
@@ -415,7 +276,7 @@ inline void export_intermediate_solutions(
   *out << early_conflict.robot_state_j.format(dynobench::FMT) << std::endl;
 }
 
-inline void export_constraints(
+void export_constraints(
     const std::vector<std::vector<dynoplan::Constraint>> &final_constraints,
     std::ofstream *out) {
   *out << "constraints:" << std::endl;
@@ -441,15 +302,9 @@ inline void export_constraints(
 }
 
 // meta-robot related additions
-struct Obstacle {
-  std::vector<double> center;
-  std::vector<double> size;
-  std::string type;
-  std::string octomap_file = "";
-};
 
 // Convert Obstacle struct to YAML node
-inline YAML::Node obstacle_to_yaml(const Obstacle &obs) {
+YAML::Node obstacle_to_yaml(const Obstacle &obs) {
   YAML::Node node;
   node["center"] = obs.center;
   node["size"] = obs.size;
@@ -458,13 +313,12 @@ inline YAML::Node obstacle_to_yaml(const Obstacle &obs) {
   return node;
 }
 
-inline void get_moving_obstacle_env(YAML::Node &env,
-                         // const std::string &initial_guess_file,
-                         MultiRobotTrajectory init_guess_multi_robot,
-                         const std::string &out_file,
-                         std::unordered_set<size_t> &cluster,
-                         bool moving_obstacles = false,
-                         bool residual_force = false) {
+void get_moving_obstacle_env(YAML::Node &env,
+                             // const std::string &initial_guess_file,
+                             MultiRobotTrajectory init_guess_multi_robot,
+                             const std::string &out_file,
+                             std::unordered_set<size_t> &cluster,
+                             bool moving_obstacles, bool residual_force) {
 
   double radius = 0.1;                                   // radius
   Eigen::Vector3d radii = Eigen::Vector3d(.12, .12, .3); // from tro paper
@@ -579,19 +433,19 @@ inline void get_moving_obstacle_env(YAML::Node &env,
 
 // for moving obstacles META-robot. Joint robots become "integrator2_3d_res_v0",
 // and start/goal augments moving obstacles have Ellipsoid shape
-inline void get_moving_obstacle(const std::string &env_file,
+void get_moving_obstacle(const std::string &env_file,
                          // const std::string &initial_guess_file,
                          MultiRobotTrajectory init_guess_multi_robot,
                          const std::string &out_file,
                          std::unordered_set<size_t> &cluster,
-                         bool moving_obstacles = false,
-                         bool residual_force = false) {
+                         bool moving_obstacles, bool residual_force) {
   YAML::Node env = YAML::LoadFile(env_file);
-  return get_moving_obstacle_env(env, init_guess_multi_robot, out_file, cluster);
+  return get_moving_obstacle_env(env, init_guess_multi_robot, out_file,
+                                 cluster);
 }
 // for meta-robot clustering, it counts how many times each robot collide with
 // other members
-inline bool getConflicts(
+bool getConflicts(
     // const std::vector<LowLevelPlan<dynobench::Trajectory>>& solution,
     const std::vector<dynobench::Trajectory> &multi_robot_trajectories,
     const std::vector<std::shared_ptr<dynobench::Model_robot>> &all_robots,
@@ -667,14 +521,8 @@ inline bool getConflicts(
   return collision;
 }
 
-struct MaxCollidingRobots {
-  size_t idx_i;
-  size_t idx_j;
-  int collisions;
-};
-
 // hard-coded, check j, k
-inline void export_solutions_joint(
+void export_solutions_joint(
     const std::vector<LowLevelPlan<dynobench::Trajectory>> &solution,
     std::ofstream *out) {
   float cost = 0;
@@ -734,7 +582,7 @@ inline void export_solutions_joint(
   }
 }
 
-inline void extract_motion_primitives(
+void extract_motion_primitives(
     dynobench::Problem &problem, MultiRobotTrajectory &multi_robot_opt_out,
     std::map<std::string, std::vector<dynoplan::Motion>> &robot_motions,
     const std::vector<std::shared_ptr<dynobench::Model_robot>> &all_robots,

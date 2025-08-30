@@ -1,3 +1,4 @@
+#pragma once
 #include "dynobench/multirobot_trajectory.hpp"
 #include <Eigen/Dense>
 #include <array>
@@ -13,6 +14,6 @@ struct Result {
   double delta;
 };
 
-std::vector<Result> db_cbs(YAML::Node &inputFile, std::string outputFile,
-                           std::string optimizationFile, YAML::Node &cfgFile,
+std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
+                           std::string optimizationFile, YAML::Node &cfg,
                            double timeLimit, double timeLimitdbCBS);

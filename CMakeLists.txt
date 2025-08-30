@@ -46,6 +46,7 @@ target_include_directories(motion_planning_common
   PRIVATE ${CMAKE_SOURCE_DIR}/deps/fcl/include
 )
 set_property(TARGET motion_planning_common PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET tdbastar_epsilon PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 ## ompl
 add_executable(main_ompl
@@ -307,19 +308,35 @@ nanobind_add_module(
 add_library(_db_cbs_lib
   src/db_cbs.cpp
 )
+add_library(_db_ecbs_lib
+  src/db_ecbs_lib.cpp
+)
 
 set_property(TARGET dbcbs_py PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET _db_cbs_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET _db_ecbs_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET optimization PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET tdbastar PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(_db_cbs_lib PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/dynoplan/include
 )
+target_include_directories(_db_ecbs_lib PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/dynoplan/include
+)
 
 target_link_libraries(_db_cbs_lib PRIVATE 
   idbastar::optimization
   idbastar::tdbastar
+  motion_planning_common
+  ${Boost_LIBRARIES}
+  ${YAML_LIBRARIES}
+  ompl
+  ${FCL_LIBRARIES}
+)
+target_link_libraries(_db_ecbs_lib PRIVATE 
+  idbastar::optimization
+  idbastar::tdbastar_epsilon
   motion_planning_common
   ${Boost_LIBRARIES}
   ${YAML_LIBRARIES}
@@ -341,6 +358,7 @@ target_link_libraries(dbcbs_py PRIVATE
 
 target_link_libraries(dbcbs_py PRIVATE 
   _db_cbs_lib
+  _db_ecbs_lib
 )
 nanobind_add_stub(
   dbcbs_py_stubs
