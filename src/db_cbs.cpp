@@ -117,12 +117,14 @@ std::vector<Result> db_cbs(YAML::Node &env, std::string outputFile,
   std::vector<dynobench::Trajectory> ll_trajs;
   std::string motionsFile;
   std::vector<std::string> all_motionsFile;
-  for (const auto &robotType : problem.robotTypes) {
+  for (size_t i = 0; i < problem.robotTypes.size(); i++) {
+    // for (const auto &robotType : problem.robotTypes) {
+    auto robotType = problem.robotTypes[i];
     std::shared_ptr<dynobench::Model_robot> robot = dynobench::robot_factory(
         (problem.models_base_path + robotType + ".yaml").c_str(), problem.p_lb,
         problem.p_ub);
     robots.push_back(robot);
-    if (YAML::Node mp_path = cfg["mp_path"]) {
+    if (YAML::Node mp_path = cfg["mp_path"][i]) {
       motionsFile = mp_path.as<std::string>();
     } else if (robotType == "unicycle1_v0" ||
                robotType == "unicycle1_sphere_v0") {
