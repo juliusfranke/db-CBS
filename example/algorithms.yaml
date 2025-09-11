@@ -54,7 +54,7 @@ db-cbs:
     delta_0: 0.9
 db-ecbs:
   default:
-    delta_0: 0.5
+    delta_0: 0.5 # 0.75 - for polulu
     delta_rate: 0.9
     num_primitives_0: 100
     num_primitives_rate: 1.5
@@ -62,25 +62,81 @@ db-ecbs:
     filter_duplicates: True
     heuristic1: "reverse-search"
     heuristic1_delta: 1.0
-    heuristic1_num_primitives_0: 100
-    suboptimality_factor: 1.3 # 3.3, 2 - if Ellipsoid shape
+    heuristic1_num_primitives_0: 100 # 500 - for polulu
+    suboptimality_factor: 1.3 # 2 - for polulu
     always_add_node: False
     rewire: True
-    execute_greedy_optimization: False
     execute_joint_optimization: True
-    residual_force: False # NN, augmented state or Ellipsoid shape
+    residual_force: False # NN, augmented state
+    conservative: False # Ellipsoid shape, no augmented state
     save_expanded_trajs: False
   '*_unicycle_sphere':
     delta_0: 0.9
     heuristic1_delta: 0.9
-    suboptimality_factor: 3.3
+    suboptimality_factor: 3.0
   '*_hetero':
     delta_0: 0.75
+    suboptimality_factor: 3.0
   '*_trailer':
     delta_0: 0.9
-    # suboptimality_factor: 3.3
+    suboptimality_factor: 2.0
   '*alcove_unicycle':
     num_primitives_0: 300 # alcove unicycle needs
+  '*at_goal_unicycle_sphere':
+    suboptimality_factor: 2
   '*_unicycle2':
     num_primitives_0: 100
+  '*swap3_drone':
+    num_primitives_0: 50 # 400 
+    heuristic1_num_primitives_0: 100 # 300
+  '*_kink':
+    delta_0: 0.75
+    num_primitives_0: 50 
+    heuristic1_delta: 0.5
+    heuristic1_num_primitives_0: 100
+
+db-ecbs-residual:
+  default:
+    delta_0: 0.5
+    delta_rate: 0.9
+    num_primitives_0: 100 # 100
+    num_primitives_rate: 1.5
+    alpha: 0.5
+    filter_duplicates: True
+    heuristic1: "reverse-search"
+    heuristic1_delta: 1.0
+    heuristic1_num_primitives_0: 100 # 500-wall10
+    suboptimality_factor: 2 # 2.3 - wall10
+    always_add_node: False
+    rewire: True
+    execute_joint_optimization: True
+    residual_force: True # NN, augmented state
+    conservative: False # Ellipsoid shape, no augmented state
+    save_expanded_trajs: False
+  '*swap3_drone':
+    num_primitives_0: 50 
+    heuristic1_num_primitives_0: 100 
+
+
+db-ecbs-conservative:
+  default:
+    delta_0: 0.5
+    delta_rate: 0.9
+    num_primitives_0: 100 # 100
+    num_primitives_rate: 1.5
+    alpha: 0.5
+    filter_duplicates: True
+    heuristic1: "reverse-search"
+    heuristic1_delta: 1.0
+    heuristic1_num_primitives_0: 100 # 500 - wall10
+    suboptimality_factor: 2 # 2.3 - wall10
+    always_add_node: False
+    rewire: True
+    execute_joint_optimization: True
+    residual_force: False # NN, augmented state
+    conservative: True # Ellipsoid shape, no augmented state
+    save_expanded_trajs: False
+  '*swap3_drone':
+    num_primitives_0: 50 
+    heuristic1_num_primitives_0: 100 
 
